@@ -1,5 +1,7 @@
 package es
 
+import scala.concurrent.Future
+
 trait AggregateRoot[Self <: AggregateRoot[Self, Id, Command, Event, Error], Id, Command, Event, Error] {
   def id: Id
   def execute(c: Command): Either[Error, Seq[Event]]
@@ -15,6 +17,10 @@ trait AggregateType {
   protected trait RootBase extends AggregateRoot[Root, Id, Command, Event, Error]
 
   case class EventData(aggregate: Id, event: Event)
+
+  trait CommandHandler {
+    def execute(c: Command): Future[Either[Error, Unit]]
+  }
 
   object Command {
     def unapply(a: Any): Option[Command] = commandMatcher.lift(a)

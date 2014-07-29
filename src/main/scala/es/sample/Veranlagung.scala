@@ -2,33 +2,31 @@ package es.sample
 
 import java.util.UUID
 
-import es.AggregateType
-
-import scala.concurrent.Future
+import es.{AggregateActorBinding, AggregateType}
 
 object veranlagung extends AggregateType {
   type Id = UUID
+
+  //Commands
   sealed trait Command {
     val veranlagung: Id
   }
-  sealed trait Event
-  sealed trait Error
-  type Root = Veranlagung
-
-  //Commands
   case class Request() extends Command {
     val veranlagung = UUID.randomUUID
   }
   case class FillOut(veranlagung: Id, einkommen: Long) extends Command
   case class SubmitToAuthority(veranlagung: Id) extends Command
   //Events
+  sealed trait Event
   case class FilledOut(einkommen: Long) extends Event
   case object Submitted extends Event
   //Errors
+  sealed trait Error
   case object Incomplete extends Error
   case object AlreadySubmitted extends Error
   case object Unhandled extends Error
 
+  type Root = Veranlagung
   case class Veranlagung(id: Id, einkommen: Option[Long], finished: Boolean) extends RootBase {
     def execute(c: Command) = c match {
       case FillOut(`id`, einkommen: Long) =>
@@ -45,10 +43,6 @@ object veranlagung extends AggregateType {
       case FilledOut(einkommen) => copy(einkommen = Some(einkommen))
       case Submitted => copy(finished = true)
     }
-  }
-
-  trait CommandHandler {
-    def execute(c: Command): Future[Either[Error, Unit]]
   }
 
   protected def commandMatcher = {
