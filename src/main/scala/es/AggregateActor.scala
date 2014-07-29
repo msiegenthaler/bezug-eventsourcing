@@ -24,7 +24,8 @@ trait AggregateActorBinding[A <: AggregateType] {
 }
 
 class AggregateActorManager[A <: AggregateType](binding: AggregateActorBinding[A])
-  (system: ActorSystem, eventBus: EventBus {type Event >: A#EventData}, maxNodes: Int = 10, inMemoryTimeout: Duration = 5.minutes) {
+  (system: ActorSystem, eventBus: EventBus {type Event >: A#EventData},
+    maxNodes: Int = 10, inMemoryTimeout: Duration = 5.minutes) {
 
   import binding.aggregateType._
 
@@ -37,7 +38,8 @@ class AggregateActorManager[A <: AggregateType](binding: AggregateActorBinding[A
   private val shardResolver: ShardResolver =
     idExtractor.andThen(_._1.hashCode % shardCount).andThen(_.toString)
 
-  private val region = ClusterSharding(system).start(regionName, Some(Props(new AggregateRootActor)), idExtractor, shardResolver)
+  private val region =
+    ClusterSharding(system).start(regionName, Some(Props(new AggregateRootActor)), idExtractor, shardResolver)
 
   private class AggregateRootActor extends PersistentActor {
     def persistenceId = self.path.name
