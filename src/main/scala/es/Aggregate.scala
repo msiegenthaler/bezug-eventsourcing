@@ -7,6 +7,7 @@ import Scalaz._
 import shapeless._
 import shapeless.syntax.typeable._
 
+/** Root of an aggregate (see DDD) */
 trait AggregateRoot[Self <: AggregateRoot[Self, Id, Command, Event, Error], Id, Command, Event, Error] {
   def id: Id
   def execute(c: Command): Validation[Error, Seq[Event]]
@@ -18,6 +19,7 @@ trait AggregateRoot[Self <: AggregateRoot[Self, Id, Command, Event, Error], Id, 
   protected implicit def eventsToValidation(events: Seq[Event]): Validation[Nothing, Seq[Event]] = events.success
 }
 
+/** A type of aggregate. Implement using an object. */
 trait AggregateType {
   type Id
   type Command

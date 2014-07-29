@@ -14,6 +14,15 @@ import scalaz._
 import Scalaz._
 
 
+/**
+ * Runs an aggregate type as an akka actor.
+ * The individual aggregate roots are distributed across the cluster using cluster sharding. Akka persistence
+ * is used for persistence of the events. All persisted events are published to the event bus.
+ * After an aggregate has not received commands for some time it is removed
+ * from memory. At the next command it is again constructed from the persistent events in the event store.
+ *
+ * @tparam A the aggregate type
+ */
 trait AggregateActorBinding[A <: AggregateType] {
   val aggregateType: A
 
