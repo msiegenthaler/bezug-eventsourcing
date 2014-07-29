@@ -1,11 +1,19 @@
 package es
 
+import scala.language.implicitConversions
 import scala.concurrent.Future
+import scalaz._
+import Scalaz._
 
 trait AggregateRoot[Self <: AggregateRoot[Self, Id, Command, Event, Error], Id, Command, Event, Error] {
   def id: Id
-  def execute(c: Command): Either[Error, Seq[Event]]
+  def execute(c: Command): Validation[Error, Seq[Event]]
   def applyEvent(e: Event): Self
+
+  protected implicit def eventToEvents[E](event: Validation[E, Event]): Validation[E, Seq[Event]] = event.map(Seq(_))
+  protected implicit def errorToValidation(error: Error): Validation[Error, Nothing] = error.fail
+  protected implicit def eventToValidation(event: Event): Validation[Nothing, Seq[Event]] = Seq(event).success
+  protected implicit def eventsToValidation(events: Seq[Event]): Validation[Nothing, Seq[Event]] = events.success
 }
 
 trait AggregateType {
@@ -19,7 +27,7 @@ trait AggregateType {
   case class EventData(aggregate: Id, event: Event)
 
   trait CommandHandler {
-    def execute(c: Command): Future[Either[Error, Unit]]
+    def execute(c: Command): Future[Validation[Error, Unit]]
   }
 
   object Command {

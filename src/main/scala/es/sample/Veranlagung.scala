@@ -1,7 +1,6 @@
 package es.sample
 
 import java.util.UUID
-
 import es.{AggregateActorBinding, AggregateType}
 
 object veranlagung extends AggregateType {
@@ -29,14 +28,16 @@ object veranlagung extends AggregateType {
   type Root = Veranlagung
   case class Veranlagung(id: Id, einkommen: Option[Long], finished: Boolean) extends RootBase {
     def execute(c: Command) = c match {
+      case Request() =>
+        Seq.empty
       case FillOut(`id`, einkommen: Long) =>
-        if (finished) Left(AlreadySubmitted)
-        else Right(FilledOut(einkommen) :: Nil)
+        if (finished) AlreadySubmitted
+        else FilledOut(einkommen)
       case SubmitToAuthority(`id`) =>
-        if (finished) Left(AlreadySubmitted)
-        if (einkommen.isEmpty) Left(Incomplete)
-        else Right(Submitted :: Nil)
-      case _ => Left(Unhandled)
+        if (finished) AlreadySubmitted
+        if (einkommen.isEmpty) Incomplete
+        else Submitted
+      case _ => Unhandled
     }
 
     def applyEvent(e: Event) = e match {

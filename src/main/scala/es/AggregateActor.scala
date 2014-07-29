@@ -10,6 +10,7 @@ import akka.pattern.ask
 
 import scala.concurrent.{Future, ExecutionContext}
 import scala.concurrent.duration._
+import scalaz.{Failure, Success}
 
 
 trait AggregateActorBinding[A <: AggregateType] {
@@ -48,12 +49,12 @@ class AggregateActorManager[A <: AggregateType](binding: AggregateActorBinding[A
     def receiveCommand = {
       case Command(cmd) =>
         state.execute(cmd) match {
-          case Right(events) =>
+          case Success(events) =>
             persist(events) { events =>
               events.foreach(handleEvent)
               events map (e => EventData(state.id, e)) foreach publishEvent
             }
-          case Left(Error(error)) =>
+          case Failure(Error(error)) =>
             sender ! error
         }
 

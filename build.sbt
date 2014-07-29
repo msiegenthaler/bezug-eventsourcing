@@ -11,6 +11,7 @@ libraryDependencies += "com.typesafe.akka" %% "akka-cluster" % "2.3.4"
 
 libraryDependencies += "com.typesafe.akka" %% "akka-contrib" % "2.3.4"
 
+libraryDependencies += "org.scalaz" %% "scalaz-core" % "7.0.6"
 
 
 scalacOptions ++= Seq("-unchecked", "-deprecation", "-feature")
