@@ -4,6 +4,8 @@ import scala.language.implicitConversions
 import scala.concurrent.Future
 import scalaz._
 import Scalaz._
+import shapeless._
+import shapeless.syntax.typeable._
 
 trait AggregateRoot[Self <: AggregateRoot[Self, Id, Command, Event, Error], Id, Command, Event, Error] {
   def id: Id
@@ -31,15 +33,20 @@ trait AggregateType {
   }
 
   object Command {
-    def unapply(a: Any): Option[Command] = commandMatcher.lift(a)
+    private implicit def commandTypeable: Typeable[Command] = types._1
+    def unapply(a: Any): Option[Command] = a.cast[Command]
   }
   object Event {
-    def unapply(a: Any): Option[Event] = eventMatcher.lift(a)
+    private implicit def eventTypeable: Typeable[Event] = types._2
+    def unapply(a: Any): Option[Event] = a.cast[Event]
   }
   object Error {
-    def unapply(a: Any): Option[Error] = errorMatcher.lift(a)
+    private implicit def errorTypeable: Typeable[Error] = types._3
+    def unapply(a: Any): Option[Error] = a.cast[Error]
   }
-  protected def commandMatcher: PartialFunction[Any, Command]
-  protected def eventMatcher: PartialFunction[Any, Event]
-  protected def errorMatcher: PartialFunction[Any, Error]
+
+  protected def typeInfo[Cmd <: Command : Typeable, Ev <: Event : Typeable, Err <: Error : Typeable]: (Typeable[Cmd], Typeable[Ev], Typeable[Err]) = {
+    (implicitly, implicitly, implicitly)
+  }
+  protected def types: (Typeable[Command], Typeable[Event], Typeable[Error])
 }

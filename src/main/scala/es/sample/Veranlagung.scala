@@ -2,6 +2,7 @@ package es.sample
 
 import java.util.UUID
 import es.{AggregateActorBinding, AggregateType}
+import shapeless.Typeable
 
 object veranlagung extends AggregateType {
   type Id = UUID
@@ -46,15 +47,6 @@ object veranlagung extends AggregateType {
     }
   }
 
-  protected def commandMatcher = {
-    case c: Command => c
-  }
-  protected def eventMatcher = {
-    case e: Event => e
-  }
-  protected def errorMatcher = {
-    case e: Error => e
-  }
-
+  protected def types = typeInfo
   private[sample] def seed(id: Id) = Veranlagung(id, None, false)
 }
