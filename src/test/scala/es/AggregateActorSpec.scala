@@ -18,6 +18,8 @@ class AggregateActorSpec(_system: ActorSystem) extends TestKit(_system) with Imp
         |akka.actor.debug.receive = "on"
         |akka.actor.debug.autoreceive = "off"
         |akka.actor.debug.lifecycle = "off"
+        |akka.remote.netty.tcp.hostname = "127.0.0.1"
+        |akka.remote.netty.tcp.port = 0
         |akka.persistence.journal.plugin = "in-memory-journal"
       """.stripMargin)
     ActorSystem("AggregateActorSpec", config)
