@@ -45,6 +45,7 @@ class AggregateActorManager[A <: AggregateType](binding: AggregateBinding[A])
 
   private class AggregateRootActor extends PersistentActor with ActorLogging {
     def persistenceId = self.path.name
+    private var eventSeq: Int = 0
     private var state = binding.seed(persistenceId)
 
     log.debug(s"Starting aggregator actor for ${binding.name} with id $persistenceId")
@@ -60,7 +61,8 @@ class AggregateActorManager[A <: AggregateType](binding: AggregateBinding[A])
           case Success(events) =>
             def eventHandler(event: Event) = {
               handleEvent(event)
-              publishEvent(EventData(state.id, event))
+              publishEvent(EventData(state.id, eventSeq, event))
+              eventSeq = eventSeq + 1
             }
             events.dropRight(1).foreach(persist(_)(eventHandler))
             persist(events.last) { event =>
@@ -81,7 +83,9 @@ class AggregateActorManager[A <: AggregateType](binding: AggregateBinding[A])
     }
 
     def receiveRecover = {
-      case Event(event) => handleEvent(event)
+      case Event(event) =>
+        eventSeq = eventSeq + 1
+        handleEvent(event)
       case RecoveryCompleted => log.info(s"Events successfully applied")
     }
 

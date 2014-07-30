@@ -67,10 +67,10 @@ class AggregateActorSpec(_system: ActorSystem) extends TestKit(_system) with Imp
       executeSuccess(init)
 
       executeSuccess(Increment(init.counter))
-      ep.expectMsg(EventData(init.counter, Incremented(1)))
+      ep.expectMsg(EventData(init.counter, 0, Incremented(1)))
 
       executeSuccess(Increment(init.counter))
-      ep.expectMsg(EventData(init.counter, Incremented(2)))
+      ep.expectMsg(EventData(init.counter, 1, Incremented(2)))
     }
 
     "preserve state if killed" in {
@@ -79,12 +79,12 @@ class AggregateActorSpec(_system: ActorSystem) extends TestKit(_system) with Imp
       executeSuccess(init)
 
       executeSuccess(Increment(init.counter))
-      ep.expectMsg(EventData(init.counter, Incremented(1)))
+      ep.expectMsg(EventData(init.counter, 0, Incremented(1)))
 
       manager.execute(Kill(init.counter))
 
       executeSuccess(Increment(init.counter))
-      ep.expectMsg(EventData(init.counter, Incremented(2)))
+      ep.expectMsg(EventData(init.counter, 1, Incremented(2)))
     }
 
     "preserve state if passivated" in {
@@ -93,12 +93,12 @@ class AggregateActorSpec(_system: ActorSystem) extends TestKit(_system) with Imp
       executeSuccess(init)
 
       executeSuccess(Increment(init.counter))
-      ep.expectMsg(EventData(init.counter, Incremented(1)))
+      ep.expectMsg(EventData(init.counter, 0, Incremented(1)))
 
       Thread.sleep(5.seconds.toMillis)
 
       executeSuccess(Increment(init.counter))
-      ep.expectMsg(EventData(init.counter, Incremented(2)))
+      ep.expectMsg(EventData(init.counter, 1, Incremented(2)))
     }
   }
 }

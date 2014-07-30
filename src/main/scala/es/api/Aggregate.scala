@@ -30,7 +30,13 @@ trait AggregateType {
   type Root <: AggregateRoot[Root, Id, Command, Event, Error]
   protected trait RootBase extends AggregateRoot[Root, Id, Command, Event, Error]
 
-  case class EventData(aggregate: Id, event: Event)
+  /**
+   * Wraps an event.
+   * @param aggregate the aggregate affected by the event
+   * @param sequence sequence number of the event within the aggregate (0 is first, 1 is second, ...)
+   * @param event the event itself
+   */
+  case class EventData(aggregate: Id, sequence: Int, event: Event)
 
   trait CommandHandler {
     def execute(c: Command): Future[Validation[Error, Unit]]
