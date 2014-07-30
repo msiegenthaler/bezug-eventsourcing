@@ -13,6 +13,7 @@ trait AggregateRoot[Self <: AggregateRoot[Self, Id, Command, Event, Error], Id, 
   def execute(c: Command): Validation[Error, Seq[Event]]
   def applyEvent(e: Event): Self
 
+  // Helper methods for more convenience when writing execute() implementations
   protected implicit def eventToEvents[E](event: Validation[E, Event]): Validation[E, Seq[Event]] = event.map(Seq(_))
   protected implicit def errorToValidation(error: Error): Validation[Error, Nothing] = error.fail
   protected implicit def eventToValidation(event: Event): Validation[Nothing, Seq[Event]] = Seq(event).success

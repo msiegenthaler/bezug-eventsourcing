@@ -1,8 +1,7 @@
 package es.sample
 
 import java.util.UUID
-import es.{AggregateActorBinding, AggregateType}
-import shapeless.Typeable
+import es.AggregateType
 
 object veranlagung extends AggregateType {
   type Id = UUID
