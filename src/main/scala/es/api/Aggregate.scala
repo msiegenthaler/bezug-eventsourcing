@@ -1,11 +1,12 @@
-package es
+package es.api
 
-import scala.language.implicitConversions
-import scala.concurrent.Future
-import scalaz._
-import Scalaz._
 import shapeless._
 import shapeless.syntax.typeable._
+
+import scala.concurrent.Future
+import scala.language.implicitConversions
+import scalaz.Scalaz._
+import scalaz._
 
 /** Root of an aggregate (see DDD) */
 trait AggregateRoot[Self <: AggregateRoot[Self, Id, Command, Event, Error], Id, Command, Event, Error] {

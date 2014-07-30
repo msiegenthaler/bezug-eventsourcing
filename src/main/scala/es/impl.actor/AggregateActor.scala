@@ -1,18 +1,18 @@
-package es
+package es.impl.actor
 
-import akka.actor.{ActorLogging, ReceiveTimeout, Props, ActorSystem}
+import akka.actor.{ActorLogging, ActorSystem, Props, ReceiveTimeout}
 import akka.contrib.pattern.ClusterSharding
 import akka.contrib.pattern.ShardRegion._
 import akka.event.EventBus
-import akka.persistence.{RecoveryCompleted, PersistentActor}
-import akka.util.Timeout
 import akka.pattern.ask
+import akka.persistence.{PersistentActor, RecoveryCompleted}
+import akka.util.Timeout
+import es.api.AggregateType
 
-import scala.concurrent.{Future, ExecutionContext}
 import scala.concurrent.duration._
+import scala.concurrent.{ExecutionContext, Future}
+import scalaz.Scalaz._
 import scalaz._
-import Scalaz._
-
 
 /**
  * Runs an aggregate type as an akka actor.
@@ -23,17 +23,7 @@ import Scalaz._
  *
  * @tparam A the aggregate type
  */
-trait AggregateActorBinding[A <: AggregateType] {
-  val aggregateType: A
-
-  import aggregateType._
-
-  def name: String
-  def commandToId(cmd: Command): String
-  def seed(id: String): Root
-}
-
-class AggregateActorManager[A <: AggregateType](binding: AggregateActorBinding[A])
+class AggregateActorManager[A <: AggregateType](binding: AggregateBinding[A])
   (system: ActorSystem, eventBus: EventBus {type Event >: A#EventData},
     maxNodes: Int = 10, inMemoryTimeout: Duration = 5.minutes) {
 

@@ -1,6 +1,7 @@
-package es
+package es.impl.actor
 
 import java.util.UUID
+import es.api.AggregateType
 
 object counter extends AggregateType {
   type Id = UUID
@@ -40,9 +41,10 @@ object counter extends AggregateType {
   def seed(id: Id) = Counter(id, 0)
   protected val types = typeInfo[Command, Event, Error]
 }
-object CounterActorBinding extends AggregateActorBinding[counter.type] {
+
+object CounterActorBinding extends AggregateBinding[counter.type] {
   val aggregateType = counter
-  import counter._
+  import es.impl.actor.counter._
   def name = "counter"
   def commandToId(cmd: Command) = cmd.counter.toString
   def seed(id: String) = {

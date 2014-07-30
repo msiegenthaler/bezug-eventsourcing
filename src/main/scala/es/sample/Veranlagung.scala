@@ -1,7 +1,8 @@
 package es.sample
 
 import java.util.UUID
-import es.AggregateType
+
+import es.api.AggregateType
 
 object veranlagung extends AggregateType {
   type Id = UUID
