@@ -25,12 +25,8 @@ import scalaz._
  */
 class AggregateActorManager[A <: AggregateType](binding: AggregateBinding[A])
   (system: ActorSystem, eventBus: EventBus {type Event >: EventData},
-    maxNodes: Int = 10, inMemoryTimeout: Duration = 5.minutes) {
-
+    shardCount: Int = 100, inMemoryTimeout: Duration = 5.minutes) {
   import binding.aggregateType._
-
-  protected def regionName = s"${binding.aggregateType.name}-aggregate"
-  protected val shardCount = maxNodes * 10
 
   private val idExtractor: IdExtractor = {
     case Command(cmd) => (binding.commandToId(cmd), cmd)
@@ -39,6 +35,7 @@ class AggregateActorManager[A <: AggregateType](binding: AggregateBinding[A])
   private val shardResolver: ShardResolver =
     idExtractor.andThen(_._1.hashCode % shardCount).andThen(_.toString)
 
+  private val regionName = s"${binding.aggregateType.name}-aggregate"
   private val region = {
     ClusterSharding(system).start(regionName, Some(Props(new AggregateRootActor)), idExtractor, shardResolver)
   }
