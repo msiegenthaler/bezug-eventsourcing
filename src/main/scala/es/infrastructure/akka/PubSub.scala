@@ -1,4 +1,4 @@
-package es.impl.actor
+package es.infrastructure.akka
 
 import scala.concurrent.duration._
 import akka.actor._

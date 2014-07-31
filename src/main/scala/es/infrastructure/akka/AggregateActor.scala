@@ -1,4 +1,4 @@
-package es.impl.actor
+package es.infrastructure.akka
 
 import akka.actor._
 import akka.contrib.pattern.ClusterSharding

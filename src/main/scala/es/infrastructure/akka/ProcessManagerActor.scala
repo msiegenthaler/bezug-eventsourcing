@@ -1,4 +1,4 @@
-package es.impl.actor
+package es.infrastructure.akka
 
 import akka.actor.{Actor, ActorLogging, ActorRef, ActorSystem}
 import akka.persistence.{AtLeastOnceDelivery, RecoveryCompleted, PersistentActor}

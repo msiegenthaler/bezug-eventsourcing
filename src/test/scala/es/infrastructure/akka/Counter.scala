@@ -1,4 +1,4 @@
-package es.impl.actor
+package es.infrastructure.akka
 
 import java.util.UUID
 import es.api.AggregateType

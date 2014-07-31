@@ -1,4 +1,4 @@
-package es.impl.actor
+package es.infrastructure.akka
 
 import akka.actor.ActorSystem
 import akka.cluster.Cluster
@@ -6,7 +6,7 @@ import akka.testkit.{TestProbe, ImplicitSender, TestKit}
 import akka.util.Timeout
 import com.typesafe.config.ConfigFactory
 import es.api.{AggregateType, EventData}
-import es.impl.actor.PubSub.Topic
+import es.infrastructure.akka.PubSub.Topic
 import org.scalatest.{WordSpecLike, BeforeAndAfterAll, Matchers}
 import scala.concurrent.duration._
 import scala.concurrent.ExecutionContext.Implicits.global
