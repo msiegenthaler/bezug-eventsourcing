@@ -31,14 +31,6 @@ trait AggregateType {
     protected implicit def eventsToValidation(events: Seq[Event]): Validation[Nothing, Seq[Event]] = events.success
   }
 
-  /**
-   * Wraps an event.
-   * @param aggregate the aggregate affected by the event
-   * @param sequence sequence number of the event within the aggregate (0 is first, 1 is second, ...)
-   * @param event the event itself
-   */
-  case class EventData(aggregate: Id, sequence: Int, event: Event)
-
   trait CommandHandler {
     def execute(c: Command): Future[Validation[Error, Unit]]
   }
@@ -50,6 +42,13 @@ trait AggregateType {
   object Event {
     private implicit def eventTypeable: Typeable[Event] = types._2
     def unapply(a: Any): Option[Event] = a.cast[Event]
+
+    object Data {
+      def apply(aggregate: Id, sequence: Long, event: Event) =
+        es.api.EventData(AggregateType.this)(aggregate, sequence, event)
+      def unapply(eventData: es.api.EventData): Option[EventData] =
+        if (eventData.aggregateType == AggregateType.this) Some(eventData) else None
+    }
   }
   object Error {
     private implicit def errorTypeable: Typeable[Error] = types._3

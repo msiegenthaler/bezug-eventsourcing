@@ -7,7 +7,7 @@ import akka.event.EventBus
 import akka.pattern.ask
 import akka.persistence.{PersistentActor, RecoveryCompleted}
 import akka.util.Timeout
-import es.api.AggregateType
+import es.api.{EventData, AggregateType}
 
 import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future}
@@ -24,7 +24,7 @@ import scalaz._
  * @tparam A the aggregate type
  */
 class AggregateActorManager[A <: AggregateType](binding: AggregateBinding[A])
-  (system: ActorSystem, eventBus: EventBus {type Event >: A#EventData},
+  (system: ActorSystem, eventBus: EventBus {type Event >: EventData},
     maxNodes: Int = 10, inMemoryTimeout: Duration = 5.minutes) {
 
   import binding.aggregateType._
@@ -45,7 +45,7 @@ class AggregateActorManager[A <: AggregateType](binding: AggregateBinding[A])
 
   private class AggregateRootActor extends PersistentActor with ActorLogging {
     def persistenceId = self.path.name
-    private var eventSeq: Int = 0
+    private var eventSeq: Long = 0
     private var state = binding.seed(persistenceId)
 
     log.debug(s"Starting aggregator actor for ${binding.aggregateType.name} with id $persistenceId")
@@ -61,7 +61,7 @@ class AggregateActorManager[A <: AggregateType](binding: AggregateBinding[A])
           case Success(events) =>
             def eventHandler(event: Event) = {
               handleEvent(event)
-              publishEvent(EventData(state.id, eventSeq, event))
+              publishEvent(binding.aggregateType.Event.Data(state.id, eventSeq, event))
               eventSeq = eventSeq + 1
             }
             events.dropRight(1).foreach(persist(_)(eventHandler))

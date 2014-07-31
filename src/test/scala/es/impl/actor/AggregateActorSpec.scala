@@ -5,6 +5,7 @@ import akka.cluster.Cluster
 import akka.testkit.{TestProbe, ImplicitSender, TestKit}
 import akka.util.Timeout
 import com.typesafe.config.ConfigFactory
+import es.api.EventData
 import org.scalatest.{WordSpecLike, BeforeAndAfterAll, Matchers}
 import scala.concurrent.duration._
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -39,7 +40,7 @@ class AggregateActorSpec(_system: ActorSystem) extends TestKit(_system) with Imp
 
   def eventProbe() = {
     val eventProbe = TestProbe()
-    system.eventStream.subscribe(eventProbe.ref, classOf[counter.EventData])
+    system.eventStream.subscribe(eventProbe.ref, classOf[EventData])
     eventProbe
   }
 
@@ -67,10 +68,10 @@ class AggregateActorSpec(_system: ActorSystem) extends TestKit(_system) with Imp
       executeSuccess(init)
 
       executeSuccess(Increment(init.counter))
-      ep.expectMsg(EventData(init.counter, 0, Incremented(1)))
+      ep.expectMsg(counter.Event.Data(init.counter, 0, Incremented(1)))
 
       executeSuccess(Increment(init.counter))
-      ep.expectMsg(EventData(init.counter, 1, Incremented(2)))
+      ep.expectMsg(counter.Event.Data(init.counter, 1, Incremented(2)))
     }
 
     "preserve state if killed" in {
@@ -79,12 +80,12 @@ class AggregateActorSpec(_system: ActorSystem) extends TestKit(_system) with Imp
       executeSuccess(init)
 
       executeSuccess(Increment(init.counter))
-      ep.expectMsg(EventData(init.counter, 0, Incremented(1)))
+      ep.expectMsg(counter.Event.Data(init.counter, 0, Incremented(1)))
 
       manager.execute(Kill(init.counter))
 
       executeSuccess(Increment(init.counter))
-      ep.expectMsg(EventData(init.counter, 1, Incremented(2)))
+      ep.expectMsg(counter.Event.Data(init.counter, 1, Incremented(2)))
     }
 
     "preserve state if passivated" in {
@@ -93,12 +94,12 @@ class AggregateActorSpec(_system: ActorSystem) extends TestKit(_system) with Imp
       executeSuccess(init)
 
       executeSuccess(Increment(init.counter))
-      ep.expectMsg(EventData(init.counter, 0, Incremented(1)))
+      ep.expectMsg(counter.Event.Data(init.counter, 0, Incremented(1)))
 
       Thread.sleep(5.seconds.toMillis)
 
       executeSuccess(Increment(init.counter))
-      ep.expectMsg(EventData(init.counter, 1, Incremented(2)))
+      ep.expectMsg(counter.Event.Data(init.counter, 1, Incremented(2)))
     }
   }
 }
