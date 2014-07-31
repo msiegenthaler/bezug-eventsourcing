@@ -40,15 +40,23 @@ class ProcessManagerActorManager[T <: ProcessManagerType](managerType: T)
                 actions
 
                 next match {
-                  case Left(ProcessManager.Completed) =>
-                    //TODO unsubscribe and delete me
-                    ()
+                  case Left(ProcessManager.Completed) => shutdown()
+                    persist(Finished)(_ => shutdown)
                   case Right(newState) =>
+                    // TODO handle
                     state = newState
                 }
             }
         }
     }
+
+    def shutdown() = {
+      log.info(s"Process $name ($id) finished, shutting down..")
+      subscriptions.keys.foreach(sub => pubSub ! Unsubscribe(sub))
+      context stop self
+    }
+
+
     def receiveRecover = {
       case SetupSubscription(id, request) =>
         subscriptions += (id -> SubscriptionState(Position.start, request))
@@ -61,6 +69,10 @@ class ProcessManagerActorManager[T <: ProcessManagerType](managerType: T)
           case (_, _, Right(next)) => state = next
           case _ => ()
         }
+
+      case Finished =>
+        log.warning("Trying to load an already finished process $name ($id)")
+        shutdown()
 
       case RecoveryCompleted =>
         log.debug(s"Loaded from event store.")
@@ -93,4 +105,5 @@ class ProcessManagerActorManager[T <: ProcessManagerType](managerType: T)
   private case class SubscriptionState(position: Position, request: ProcessManager.Subscribe)
   private case class SetupSubscription(id: String, request: ProcessManager.Subscribe)
   private case class DeleteSubscription(id: String)
+  private case object Finished
 }
