@@ -1,10 +1,9 @@
 package es.impl.actor
 
-import akka.actor.{ActorLogging, ActorRef, ActorSystem}
+import akka.actor.{Actor, ActorLogging, ActorRef, ActorSystem}
 import akka.persistence.{AtLeastOnceDelivery, RecoveryCompleted, PersistentActor}
 import es.api.{ProcessManager, EventData, ProcessManagerType}
 import PubSub._
-import es.impl.actor.PubSub.Producer.Publish
 
 class ProcessManagerActorManager[T <: ProcessManagerType](managerType: T)
   (system: ActorSystem, pubSub: ActorRef, eventBus: EventBusConfig) {
@@ -12,9 +11,9 @@ class ProcessManagerActorManager[T <: ProcessManagerType](managerType: T)
 
   private def subscriptionFor(unsub: ProcessManager.Unsubscribe) = unsub match {
     case ProcessManager.UnsubscribeFromAggregate(aggregate) =>
-      val subscription = ProcessManager.SubscribeToAggregate(aggregate)
+      ProcessManager.SubscribeToAggregate(aggregate)
     case ProcessManager.UnsubscribeFromAggregateType(aggregateType) =>
-      val subscription = ProcessManager.SubscribeToAggregateType(aggregateType)
+      ProcessManager.SubscribeToAggregateType(aggregateType)
   }
   private def topicFor(subscription: ProcessManager.Subscribe) = subscription match {
     case ProcessManager.SubscribeToAggregate(id) => eventBus.topicFor(id)
@@ -29,14 +28,6 @@ class ProcessManagerActorManager[T <: ProcessManagerType](managerType: T)
         .getOrElse(throw new IllegalArgumentException(s"$persistenceId is not a valid id for process manager {$managerType}"))
     }
     private var state: Manager = seed(id)
-    private var subscriptions: Map[String, SubscriptionState] = Map.empty
-
-    def nextSubscriptionId() = {
-      val id = _nextSubscriptionId
-      _nextSubscriptionId = _nextSubscriptionId + 1
-      s"$persistenceId#subscription-$id"
-    }
-    private var _nextSubscriptionId = 0
 
 
     def receiveCommand = {
@@ -55,12 +46,14 @@ class ProcessManagerActorManager[T <: ProcessManagerType](managerType: T)
                 actions.foreach {
                   case s: ProcessManager.Subscribe =>
                     persist(SubscriptionAdded(nextSubscriptionId(), s)) { event =>
+                      subscriptions += (event.id -> SubscriptionState(Position.start, s))
                       startSubscription(event.id, event.request, Position.start)
                     }
                   case s: ProcessManager.Unsubscribe =>
                     subscriptions.find(_._2.request == subscriptionFor(s)).foreach {
                       case (id, _) =>
                         persist(SubscriptionRemoved(id)) { event =>
+                          subscriptions -= id
                           stopSubscription(id)
                         }
                     }
@@ -106,25 +99,35 @@ class ProcessManagerActorManager[T <: ProcessManagerType](managerType: T)
         }
         log.debug(s"set up ${subscriptions.size} subscriptions, now ready.")
     }
-    private def updateSubscription(subscriptionId: String, pos: Position) = {
+
+    def updateSubscription(subscriptionId: String, pos: Position) = {
       val nv = subscriptions(subscriptionId).copy(position = pos)
       subscriptions += (subscriptionId -> nv)
     }
+    private var subscriptions: Map[String, SubscriptionState] = Map.empty
+    def nextSubscriptionId() = {
+      val id = _nextSubscriptionId
+      _nextSubscriptionId = _nextSubscriptionId + 1
+      s"$persistenceId#subscription-$id"
+    }
+    private var _nextSubscriptionId = 0
 
     def startSubscription(id: String, request: ProcessManager.Subscribe, position: Position) = {
-      //TODO need to await confirmation and retry if it did not work..
-      // possibly need to use a child actor to do that
-      pubSub ! Subscribe(id, topicFor(request), position)
+      val msg = Subscribe(id, topicFor(request), position)
+      val props = PubSub.SubscriptionManager.props(pubSub, msg)
+      val actor = context actorOf props
+      subscriptionManagers += id -> actor
     }
-
     def stopSubscription(id: String) = {
-      //TODO need to await confirmation and retry if it did not work..
-      // possibly need to use a child actor to do that
-      pubSub ! Unsubscribe(id)
+      subscriptionManagers.get(id) foreach { actor =>
+        actor ! Unsubscribe
+        subscriptionManagers -= id
+      }
     }
+    private var subscriptionManagers: Map[String, ActorRef] = Map.empty
 
     def publishCommand(command: Command) = {
-      deliver(pubSub.path, delivery => Publish(eventBus.commandTopic, command, PubSubAck(delivery)))
+      deliver(pubSub.path, delivery => Producer.Publish(eventBus.commandTopic, command, PubSubAck(delivery)))
     }
 
     def shutdown() = {
