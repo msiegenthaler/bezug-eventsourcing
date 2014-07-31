@@ -13,12 +13,6 @@ trait AggregateRoot[Self <: AggregateRoot[Self, Id, Command, Event, Error], Id, 
   def id: Id
   def execute(c: Command): Validation[Error, Seq[Event]]
   def applyEvent(e: Event): Self
-
-  // Helper methods for more convenience when writing execute() implementations
-  protected implicit def eventToEvents[E](event: Validation[E, Event]): Validation[E, Seq[Event]] = event.map(Seq(_))
-  protected implicit def errorToValidation(error: Error): Validation[Error, Nothing] = error.fail
-  protected implicit def eventToValidation(event: Event): Validation[Nothing, Seq[Event]] = Seq(event).success
-  protected implicit def eventsToValidation(events: Seq[Event]): Validation[Nothing, Seq[Event]] = events.success
 }
 
 /** A type of aggregate. Implement using an object. */
@@ -28,7 +22,13 @@ trait AggregateType {
   type Event
   type Error
   type Root <: AggregateRoot[Root, Id, Command, Event, Error]
-  protected trait RootBase extends AggregateRoot[Root, Id, Command, Event, Error]
+  protected trait RootBase extends AggregateRoot[Root, Id, Command, Event, Error] {
+    // Helper methods for more convenience when writing execute() implementations
+    protected implicit def eventToEvents[E](event: Validation[E, Event]): Validation[E, Seq[Event]] = event.map(Seq(_))
+    protected implicit def errorToValidation(error: Error): Validation[Error, Nothing] = error.fail
+    protected implicit def eventToValidation(event: Event): Validation[Nothing, Seq[Event]] = Seq(event).success
+    protected implicit def eventsToValidation(events: Seq[Event]): Validation[Nothing, Seq[Event]] = events.success
+  }
 
   /**
    * Wraps an event.
