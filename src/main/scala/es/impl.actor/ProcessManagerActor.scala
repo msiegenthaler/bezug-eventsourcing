@@ -21,7 +21,6 @@ class ProcessManagerActorManager[T <: ProcessManagerType](managerType: T)
     case ProcessManager.SubscribeToAggregateType(at) => eventBus.topicFor(at)
   }
 
-  //TODO use at least once delivery for commands
   private class ProcessManagerActor extends PersistentActor with AtLeastOnceDelivery with ActorLogging {
     import PubSub.Consumer._
     override def persistenceId = self.path.name
@@ -32,17 +31,24 @@ class ProcessManagerActorManager[T <: ProcessManagerType](managerType: T)
     private var state: Manager = seed(id)
     private var subscriptions: Map[String, SubscriptionState] = Map.empty
 
+    def nextSubscriptionId() = {
+      val id = _nextSubscriptionId
+      _nextSubscriptionId = _nextSubscriptionId + 1
+      s"$persistenceId#subscription-$id"
+    }
+    private var _nextSubscriptionId = 0
+
+
     def receiveCommand = {
       case message: Message =>
         persist(message) {
           case msg: Message =>
             persist(msg) { msg => pubSub ! Next(msg.subscription)}
 
-            val result = msg.data match {
+            (msg.data match {
               case event: EventData => state.handle.lift(event)
               case _ => None
-            }
-            result.foreach {
+            }) foreach {
               case (commands, actions, next) =>
                 commands foreach (persist(_)(publishCommand))
 
@@ -64,7 +70,6 @@ class ProcessManagerActorManager[T <: ProcessManagerType](managerType: T)
                   case Left(ProcessManager.Completed) => shutdown()
                     persist(Finished)(_ => shutdown)
                   case Right(newState) =>
-                    // TODO handle
                     state = newState
                 }
             }
@@ -73,13 +78,6 @@ class ProcessManagerActorManager[T <: ProcessManagerType](managerType: T)
       case PubSubAck(id) =>
         persist(CommandDeliveredToPubSub(id)) { _ => confirmDelivery(id)}
     }
-
-    def shutdown() = {
-      log.info(s"Process $name ($id) finished, shutting down..")
-      subscriptions.keys.foreach(sub => pubSub ! Unsubscribe(sub))
-      context stop self
-    }
-
 
     def receiveRecover = {
       case SubscriptionAdded(id, request) =>
@@ -98,7 +96,7 @@ class ProcessManagerActorManager[T <: ProcessManagerType](managerType: T)
       case CommandDeliveredToPubSub(id) =>
         confirmDelivery(id)
       case Finished =>
-        log.warning("Trying to load an already finished process $name ($id)")
+        log.warning("process already finished.")
         shutdown()
 
       case RecoveryCompleted =>
@@ -108,8 +106,7 @@ class ProcessManagerActorManager[T <: ProcessManagerType](managerType: T)
         }
         log.debug(s"set up ${subscriptions.size} subscriptions, now ready.")
     }
-
-    def updateSubscription(subscriptionId: String, pos: Position) = {
+    private def updateSubscription(subscriptionId: String, pos: Position) = {
       val nv = subscriptions(subscriptionId).copy(position = pos)
       subscriptions += (subscriptionId -> nv)
     }
@@ -119,22 +116,21 @@ class ProcessManagerActorManager[T <: ProcessManagerType](managerType: T)
       // possibly need to use a child actor to do that
       pubSub ! Subscribe(id, topicFor(request), position)
     }
+
     def stopSubscription(id: String) = {
       //TODO need to await confirmation and retry if it did not work..
       // possibly need to use a child actor to do that
       pubSub ! Unsubscribe(id)
     }
 
-    private var _nextSubscriptionId = 0
-    def nextSubscriptionId() = {
-      val id = _nextSubscriptionId
-      _nextSubscriptionId = _nextSubscriptionId + 1
-      s"$persistenceId#subscription-$id"
-    }
-
-
     def publishCommand(command: Command) = {
       deliver(pubSub.path, delivery => Publish(eventBus.commandTopic, command, PubSubAck(delivery)))
+    }
+
+    def shutdown() = {
+      log.info(s"Process $name ($id) finished, shutting down..")
+      subscriptions.keys.foreach(sub => pubSub ! Unsubscribe(sub))
+      context stop self
     }
   }
 
