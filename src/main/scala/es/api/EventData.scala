@@ -32,4 +32,8 @@ object EventData {
       }
     }
   }
+  def unapply(e: Any): Option[(AggregateType, Any, Long, Any)] = e match {
+    case e: EventData => Some((e.aggregateType, e.aggregate, e.sequence, e.event))
+    case _ => None
+  }
 }
