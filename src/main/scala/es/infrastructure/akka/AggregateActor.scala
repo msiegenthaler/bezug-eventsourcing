@@ -34,7 +34,7 @@ class AggregateActorManager[A <: AggregateType](aggregateType: A)
   private val shardResolver: ShardResolver =
     idExtractor.andThen(_._1.hashCode % shardCount).andThen(_.toString)
 
-  private val regionName = s"${aggregateType.name}-aggregate"
+  private val regionName = s"$name-aggregate"
   private val region = {
     ClusterSharding(system).start(regionName, Some(Props(new AggregateRootActor)), idExtractor, shardResolver)
   }
@@ -44,14 +44,14 @@ class AggregateActorManager[A <: AggregateType](aggregateType: A)
     override def persistenceId = self.path.name
     private val id = {
       parseId(persistenceId)
-        .getOrElse(throw new IllegalArgumentException(s"$persistenceId is not a valid id for aggregate {$aggregateType.name}"))
+        .getOrElse(throw new IllegalArgumentException(s"$persistenceId is not a valid id for aggregate $name"))
     }
-    val topic = eventBusConfig.topicFor(aggregateType.AggregateKey(id))
+    val topic = eventBusConfig.topicFor(AggregateKey(id))
 
     private var eventSeq: Long = 0
     private var state = seed(id)
 
-    log.debug(s"Starting aggregator actor for ${aggregateType.name} with id $persistenceId")
+    log.debug(s"Starting aggregator actor for $name with id $persistenceId")
     // evict from memory if not used for some time
     context.setReceiveTimeout(inMemoryTimeout)
 
