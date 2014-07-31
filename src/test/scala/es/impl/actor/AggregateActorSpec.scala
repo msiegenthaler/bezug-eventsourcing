@@ -55,7 +55,8 @@ class AggregateActorSpec(_system: ActorSystem) extends TestKit(_system) with Imp
     //TODO aggregate-id serialization
     val topic = eventBusConfig.topicFor(event.aggregateType, event.aggregate.toString)
     pubSub.expectMsgPF() {
-      case PubSub.Producer.Publish(`topic`, `event`, _) => ()
+      case PubSub.Producer.Publish(`topic`, `event`, ack) =>
+        pubSub reply ack
     }
   }
 
