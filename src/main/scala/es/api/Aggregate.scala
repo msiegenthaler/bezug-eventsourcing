@@ -9,8 +9,7 @@ import scalaz.Scalaz._
 import scalaz._
 
 /** Root of an aggregate (see DDD) */
-trait AggregateRoot[Self <: AggregateRoot[Self, Id, Command, Event, Error], Id, Command, Event, Error] {
-  def id: Id
+trait AggregateRoot[Self <: AggregateRoot[Self, Id, Command, Event, Error], Id, Command, Event, Error] extends Entity[Id] {
   def execute(c: Command): Validation[Error, Seq[Event]]
   def applyEvent(e: Event): Self
 }
