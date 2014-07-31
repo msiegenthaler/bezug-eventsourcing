@@ -10,6 +10,7 @@ object PubSub {
       require(child.nonEmpty)
       Topic(path :+ child)
     }
+    override def toString = path.mkString("/")
   }
   object Topic {
     val root = Topic(Nil)
