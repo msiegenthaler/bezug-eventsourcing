@@ -31,10 +31,6 @@ trait AggregateType {
     protected implicit def eventsToValidation(events: Seq[Event]): Validation[Nothing, Seq[Event]] = events.success
   }
 
-  trait CommandHandler {
-    def execute(c: Command): Future[Validation[Error, Unit]]
-  }
-
   object Command {
     private implicit def commandTypeable: Typeable[Command] = types._1
     def unapply(a: Any): Option[Command] = a.cast[Command]
