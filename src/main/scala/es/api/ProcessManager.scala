@@ -7,18 +7,18 @@ import ProcessManager._
  * Reacts to events (from one or more aggregate) and issues commands.
  *
  * The infrastructure ensures, that the process manager reliably receives all events it is subscribed to. Subscriptions
- * are retroactive (past events are also received when a subscription is made).
+ * are retroactive (past events are also received when a subscription is made). The events of one aggregate are received
+ * in sequence, event ordering between aggregates is arbitrary, but is stable (does not change when the process manager
+ * is loaded from the store).
  */
 trait ProcessManager[Self <: ProcessManager[Self, Id, Command], Id, Command] {
   def id: Id
 
   type Next = Either[Completed.type, Self]
   type Result = (Seq[Command], Traversable[Subscribe], Next)
-  def handle: PartialFunction[Event, Result]
+  def handle: PartialFunction[EventData, Result]
 }
 object ProcessManager {
-  type Event = Any
-
   case object Completed
 
   sealed trait Subscribe
@@ -44,5 +44,5 @@ trait ProcessManagerType {
    * The Id can either be derived from an event (i.e. using the aggregates id) or be created (i.e. using UUID.randomUUID).
    * Take care to not instantiate two process managers if the Id is created and not derived.
    */
-  def initiate: PartialFunction[Event, Id]
+  def initiate: PartialFunction[EventData, Id]
 }
