@@ -50,4 +50,6 @@ trait ProcessManagerType {
    * Take care to not instantiate two process managers if the Id is created and not derived.
    */
   def initiate: PartialFunction[EventData, Id]
+
+  def seed(id: Id): Manager
 }
