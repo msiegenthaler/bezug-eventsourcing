@@ -91,11 +91,12 @@ class AggregateActorManager[A <: AggregateType](aggregateType: A)
     def handleEvent(event: Event) = {
       state = state applyEvent event
       //at-least-once trait replays it if needed (no ack received)
-      publishEvent(Event.Data(state.id, eventSeq, event))
+      val eventData = Event.Data(state.id, eventSeq, event)
+      deliver(pubSub.path, id => PubSub.Producer.Publish(topic, eventData, PubSubAck(id)))
       eventSeq = eventSeq + 1
     }
     def publishEvent(event: EventData) = {
-      deliver(pubSub.path, id => PubSub.Producer.Publish(topic, event, PubSubAck(id)))
+
     }
   }
 
