@@ -1,6 +1,6 @@
 package es.impl.actor
 
-import akka.actor.{ActorLogging, ActorSystem, Props, ReceiveTimeout}
+import akka.actor._
 import akka.contrib.pattern.ClusterSharding
 import akka.contrib.pattern.ShardRegion._
 import akka.event.EventBus
@@ -24,7 +24,7 @@ import scalaz._
  * @tparam A the aggregate type
  */
 class AggregateActorManager[A <: AggregateType](binding: AggregateBinding[A])
-  (system: ActorSystem, eventBus: EventBus {type Event >: EventData},
+  (system: ActorSystem, pubSub: ActorRef, eventBusConfig: EventBusConfig,
     shardCount: Int = 100, inMemoryTimeout: Duration = 5.minutes) {
   import binding.aggregateType._
 
@@ -40,6 +40,8 @@ class AggregateActorManager[A <: AggregateType](binding: AggregateBinding[A])
     ClusterSharding(system).start(regionName, Some(Props(new AggregateRootActor)), idExtractor, shardResolver)
   }
 
+  //TODO at least once delivery for pub/sub
+  //TODO command deduplication
   private class AggregateRootActor extends PersistentActor with ActorLogging {
     def persistenceId = self.path.name
     private var eventSeq: Long = 0
@@ -88,7 +90,12 @@ class AggregateActorManager[A <: AggregateType](binding: AggregateBinding[A])
 
     def handleEvent(event: Event) =
       state = state applyEvent event
-    def publishEvent(event: EventData) = eventBus publish event
+    def publishEvent(event: EventData) = {
+      //TODO id serialization
+      val topic = eventBusConfig.topicFor(binding.aggregateType, state.id.toString)
+      //TODO at least once
+      pubSub ! PubSub.Producer.Publish(topic, event, ())
+    }
   }
 
   private case object PassivateAggregateRoot

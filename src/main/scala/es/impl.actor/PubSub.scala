@@ -4,12 +4,15 @@ import akka.util.ByteString
 
 object PubSub {
   /** Topic. Is hierarchical, subscribing to the parent topic includes all subtopics. */
-  case class Topic(path: List[String]) {
+  case class Topic private(path: List[String]) {
     def parent = Topic(path.dropRight(1))
     def \(child: String) = {
       require(child.nonEmpty)
       Topic(path :+ child)
     }
+  }
+  object Topic {
+    val root = Topic(Nil)
   }
 
   /** Position with a subscription (opaque for users). */

@@ -5,7 +5,8 @@ import akka.cluster.Cluster
 import akka.testkit.{TestProbe, ImplicitSender, TestKit}
 import akka.util.Timeout
 import com.typesafe.config.ConfigFactory
-import es.api.EventData
+import es.api.{AggregateType, EventData}
+import es.impl.actor.PubSub.Topic
 import org.scalatest.{WordSpecLike, BeforeAndAfterAll, Matchers}
 import scala.concurrent.duration._
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -34,14 +35,11 @@ class AggregateActorSpec(_system: ActorSystem) extends TestKit(_system) with Imp
     TestKit.shutdownActorSystem(system)
   }
 
-  val manager = {
-    new AggregateActorManager(CounterActorBinding)(system, system.eventStream, 1, 3.seconds)
-  }
+  val pubSub = TestProbe()
+  val eventBusConfig = EventBusConfig(Topic.root)
 
-  def eventProbe() = {
-    val eventProbe = TestProbe()
-    system.eventStream.subscribe(eventProbe.ref, classOf[EventData])
-    eventProbe
+  val manager = {
+    new AggregateActorManager(CounterActorBinding)(system, pubSub.ref, eventBusConfig, 1, 3.seconds)
   }
 
 
@@ -52,54 +50,58 @@ class AggregateActorSpec(_system: ActorSystem) extends TestKit(_system) with Imp
     awaitCond(res.isCompleted, timeout.duration)
     assert(res.value.get.isSuccess)
   }
+  def expectNoEvent() = pubSub.expectNoMsg()
+  def expectEvent(event: EventData) = {
+    //TODO aggregate-id serialization
+    val topic = eventBusConfig.topicFor(event.aggregateType, event.aggregate.toString)
+    pubSub.expectMsgPF() {
+      case PubSub.Producer.Publish(`topic`, `event`, _) => ()
+    }
+  }
 
   "aggregate actor" must {
     import counter._
 
     "create a new aggregate root for never used id" in {
-      val ep = eventProbe()
       executeSuccess(Initialize())
 
-      ep.expectNoMsg()
+      expectNoEvent()
     }
     "preserve state between invocations" in {
-      val ep = eventProbe()
       val init = Initialize()
       executeSuccess(init)
 
       executeSuccess(Increment(init.counter))
-      ep.expectMsg(counter.Event.Data(init.counter, 0, Incremented(1)))
+      expectEvent(counter.Event.Data(init.counter, 0, Incremented(1)))
 
       executeSuccess(Increment(init.counter))
-      ep.expectMsg(counter.Event.Data(init.counter, 1, Incremented(2)))
+      expectEvent(counter.Event.Data(init.counter, 1, Incremented(2)))
     }
 
     "preserve state if killed" in {
-      val ep = eventProbe()
       val init = Initialize()
       executeSuccess(init)
 
       executeSuccess(Increment(init.counter))
-      ep.expectMsg(counter.Event.Data(init.counter, 0, Incremented(1)))
+      expectEvent(counter.Event.Data(init.counter, 0, Incremented(1)))
 
       manager.execute(Kill(init.counter))
 
       executeSuccess(Increment(init.counter))
-      ep.expectMsg(counter.Event.Data(init.counter, 1, Incremented(2)))
+      expectEvent(counter.Event.Data(init.counter, 1, Incremented(2)))
     }
 
     "preserve state if passivated" in {
-      val ep = eventProbe()
       val init = Initialize()
       executeSuccess(init)
 
       executeSuccess(Increment(init.counter))
-      ep.expectMsg(counter.Event.Data(init.counter, 0, Incremented(1)))
+      expectEvent(counter.Event.Data(init.counter, 0, Incremented(1)))
 
       Thread.sleep(5.seconds.toMillis)
 
       executeSuccess(Increment(init.counter))
-      ep.expectMsg(counter.Event.Data(init.counter, 1, Incremented(2)))
+      expectEvent(counter.Event.Data(init.counter, 1, Incremented(2)))
     }
   }
 }

@@ -3,7 +3,7 @@ package es.impl.actor
 import es.api.AggregateType
 import es.impl.actor.PubSub.Topic
 
-class EventBusConfig(baseTopic: Topic) {
+case class EventBusConfig(baseTopic: Topic) {
   val aggregateEventTopic =
     baseTopic \ "aggregate"
 
