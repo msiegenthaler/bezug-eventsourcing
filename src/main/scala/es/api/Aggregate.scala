@@ -31,9 +31,16 @@ trait AggregateType {
     protected implicit def eventsToValidation(events: Seq[Event]): Validation[Nothing, Seq[Event]] = events.success
   }
 
+  def seed(id: Id): Root
+  def serializeId(id: Id): String
+  def parseId(serialized: String): Option[Id]
+  def aggregateIdForCommand(command: Command): Option[Id]
+  protected def types: (Typeable[Command], Typeable[Event], Typeable[Error])
+
   object Command {
     private implicit def commandTypeable: Typeable[Command] = types._1
-    def unapply(a: Any): Option[Command] = a.cast[Command]
+    def unapply(a: Any): Option[(Id, Command)] =
+      a.cast[Command].flatMap(c => aggregateIdForCommand(c).map((_, c)))
   }
   object Event {
     private implicit def eventTypeable: Typeable[Event] = types._2
@@ -51,8 +58,24 @@ trait AggregateType {
     def unapply(a: Any): Option[Error] = a.cast[Error]
   }
 
+  def AggregateKey(aggregateId: Id): AggregateKey = new AggregateKey {
+    val aggregateType = AggregateType.this
+    val id = aggregateId.asInstanceOf[aggregateType.Id]
+    override def hashCode = aggregateType.hashCode ^ id.hashCode
+    override def equals(o: Any) = o match {
+      case o: AggregateKey => aggregateType == o.aggregateType && id == o.id
+      case _ => false
+    }
+    override def toString = s"AggregateKey($aggregateType, $id)"
+  }
+
   protected def typeInfo[Cmd <: Command : Typeable, Ev <: Event : Typeable, Err <: Error : Typeable]: (Typeable[Cmd], Typeable[Ev], Typeable[Err]) = {
     (implicitly, implicitly, implicitly)
   }
-  protected def types: (Typeable[Command], Typeable[Event], Typeable[Error])
+  override def toString = name
+}
+
+sealed trait AggregateKey {
+  val aggregateType: AggregateType
+  def id: aggregateType.Id
 }

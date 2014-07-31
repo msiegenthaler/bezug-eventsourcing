@@ -22,37 +22,41 @@ import scalaz._
  *
  * @tparam A the aggregate type
  */
-class AggregateActorManager[A <: AggregateType](binding: AggregateBinding[A])
+class AggregateActorManager[A <: AggregateType](aggregateType: A)
   (system: ActorSystem, pubSub: ActorRef, eventBusConfig: EventBusConfig,
     shardCount: Int = 100, inMemoryTimeout: Duration = 5.minutes) {
-  import binding.aggregateType._
+  import aggregateType._
 
   private val idExtractor: IdExtractor = {
-    case Command(cmd) => (binding.commandToId(cmd), cmd)
+    case Command(id, cmd) => (serializeId(id), cmd)
     case any => ("", any)
   }
   private val shardResolver: ShardResolver =
     idExtractor.andThen(_._1.hashCode % shardCount).andThen(_.toString)
 
-  private val regionName = s"${binding.aggregateType.name}-aggregate"
+  private val regionName = s"${aggregateType.name}-aggregate"
   private val region = {
     ClusterSharding(system).start(regionName, Some(Props(new AggregateRootActor)), idExtractor, shardResolver)
   }
 
-  //TODO at least once delivery for pub/sub
   //TODO command deduplication
   private class AggregateRootActor extends PersistentActor with AtLeastOnceDelivery with ActorLogging {
     override def persistenceId = self.path.name
+    private val id = {
+      parseId(persistenceId)
+        .getOrElse(throw new IllegalArgumentException(s"$persistenceId is not a valid id for aggregate {$aggregateType.name}"))
+    }
+    val topic = eventBusConfig.topicFor(aggregateType.AggregateKey(id))
+
     private var eventSeq: Long = 0
-    private var state = binding.seed(persistenceId)
+    private var state = seed(id)
 
-    log.debug(s"Starting aggregator actor for ${binding.aggregateType.name} with id $persistenceId")
-
+    log.debug(s"Starting aggregator actor for ${aggregateType.name} with id $persistenceId")
     // evict from memory if not used for some time
     context.setReceiveTimeout(inMemoryTimeout)
 
     def receiveCommand = {
-      case Command(cmd) =>
+      case Command(`id`, cmd) =>
         state.execute(cmd) match {
           case Success(events) if events.isEmpty =>
             sender() ! ().success
@@ -87,12 +91,10 @@ class AggregateActorManager[A <: AggregateType](binding: AggregateBinding[A])
     def handleEvent(event: Event) = {
       state = state applyEvent event
       //at-least-once trait replays it if needed (no ack received)
-      publishEvent(binding.aggregateType.Event.Data(state.id, eventSeq, event))
+      publishEvent(Event.Data(state.id, eventSeq, event))
       eventSeq = eventSeq + 1
     }
     def publishEvent(event: EventData) = {
-      //TODO id serialization
-      val topic = eventBusConfig.topicFor(binding.aggregateType, state.id.toString)
       deliver(pubSub.path, id => PubSub.Producer.Publish(topic, event, PubSubAck(id)))
     }
   }
@@ -104,7 +106,7 @@ class AggregateActorManager[A <: AggregateType](binding: AggregateBinding[A])
   def execute(cmd: Command)(implicit timeout: Timeout, ec: ExecutionContext): Future[Validation[A#Error, Unit]] = {
     region ? cmd map {
       case Success(_) => ().success
-      case Failure(binding.aggregateType.Error(e)) => e.failure
+      case Failure(Error(e)) => e.failure
     }
   }
 }

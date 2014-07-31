@@ -4,6 +4,8 @@ import java.util.UUID
 
 import es.api.AggregateType
 
+import scala.util.Try
+
 object veranlagung extends AggregateType {
   def name = "Veranlagung"
   type Id = UUID
@@ -48,6 +50,9 @@ object veranlagung extends AggregateType {
     }
   }
 
+  def seed(id: Id) = Veranlagung(id, None, false)
+  def parseId(id: String) = Try(UUID.fromString(id)).toOption
+  def serializeId(id: Id) = id.toString
+  def aggregateIdForCommand(command: Command) = Some(command.veranlagung)
   protected def types = typeInfo
-  private[sample] def seed(id: Id) = Veranlagung(id, None, false)
 }

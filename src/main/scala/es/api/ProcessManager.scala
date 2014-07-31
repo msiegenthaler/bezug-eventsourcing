@@ -25,10 +25,10 @@ object ProcessManager {
 
   sealed trait Subscribe extends SubscriptionAction
   case class SubscribeToAggregateType(aggregateType: AggregateType) extends Subscribe
-  case class SubscribeToAggregate[A <: AggregateType](aggregateType: A, id: A#Id) extends Subscribe
+  case class SubscribeToAggregate(id: AggregateKey) extends Subscribe
   sealed trait Unsubscribe extends SubscriptionAction
   case class UnsubscribeFromAggregateType(aggregateType: AggregateType) extends Unsubscribe
-  case class UnsubscribeFromAggregate[A <: AggregateType](aggregateType: A, id: A#Id) extends Unsubscribe
+  case class UnsubscribeFromAggregate(id: AggregateKey) extends Unsubscribe
 }
 
 trait ProcessManagerType {
@@ -52,4 +52,8 @@ trait ProcessManagerType {
   def initiate: PartialFunction[EventData, Id]
 
   def seed(id: Id): Manager
+  def serializeId(id: Id): String
+  def parseId(serialized: String): Option[Id]
+
+  override def toString = name
 }

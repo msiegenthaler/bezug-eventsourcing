@@ -12,10 +12,11 @@ class ProcessManagerActorManager[T <: ProcessManagerType](managerType: T)
   //TODO use at least once delivery for commands
   private class ProcessManagerActor extends PersistentActor with ActorLogging {
     import PubSub.Consumer._
-
-    //TODO
-    private val id = ???
     def persistenceId = self.path.name
+    private val id = {
+      parseId(persistenceId)
+        .getOrElse(throw new IllegalArgumentException(s"$persistenceId is not a valid id for process manager {$managerType}"))
+    }
     private var state: Manager = seed(id)
     private var subscriptions: Map[String, SubscriptionState] = Map.empty
 
@@ -76,9 +77,7 @@ class ProcessManagerActorManager[T <: ProcessManagerType](managerType: T)
 
     def setupSubscription(id: String, request: ProcessManager.Subscribe, position: Position) = {
       val topic = request match {
-        case ProcessManager.SubscribeToAggregate(at, id) =>
-          //TODO id serialization
-          eventBus.topicFor(at, id.toString)
+        case ProcessManager.SubscribeToAggregate(id) => eventBus.topicFor(id)
         case ProcessManager.SubscribeToAggregateType(at) => eventBus.topicFor(at)
       }
       pubSub ! Subscribe(id, topic, position)

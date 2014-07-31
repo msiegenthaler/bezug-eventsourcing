@@ -3,6 +3,8 @@ package es.impl.actor
 import java.util.UUID
 import es.api.AggregateType
 
+import scala.util.Try
+
 object counter extends AggregateType {
   def name = "Counter"
   type Id = UUID
@@ -40,15 +42,8 @@ object counter extends AggregateType {
   }
 
   def seed(id: Id) = Counter(id, 0)
+  def serializeId(id: Id) = id.toString
+  def parseId(serialized: String) = Try(UUID.fromString(serialized)).toOption
+  def aggregateIdForCommand(command: Command) = Some(command.counter)
   protected val types = typeInfo[Command, Event, Error]
-}
-
-object CounterActorBinding extends AggregateBinding[counter.type] {
-  val aggregateType = counter
-  import es.impl.actor.counter._
-  def commandToId(cmd: Command) = cmd.counter.toString
-  def seed(id: String) = {
-    val parsedId = UUID.fromString(id)
-    counter.seed(parsedId)
-  }
 }

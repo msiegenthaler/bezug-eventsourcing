@@ -39,7 +39,7 @@ class AggregateActorSpec(_system: ActorSystem) extends TestKit(_system) with Imp
   val eventBusConfig = EventBusConfig(Topic.root)
 
   val manager = {
-    new AggregateActorManager(CounterActorBinding)(system, pubSub.ref, eventBusConfig, 1, 3.seconds)
+    new AggregateActorManager(counter)(system, pubSub.ref, eventBusConfig, 1, 3.seconds)
   }
 
 
@@ -52,8 +52,7 @@ class AggregateActorSpec(_system: ActorSystem) extends TestKit(_system) with Imp
   }
   def expectNoEvent() = pubSub.expectNoMsg()
   def expectEvent(event: EventData) = {
-    //TODO aggregate-id serialization
-    val topic = eventBusConfig.topicFor(event.aggregateType, event.aggregate.toString)
+    val topic = eventBusConfig.topicFor(event.aggregateKey)
     pubSub.expectMsgPF() {
       case PubSub.Producer.Publish(`topic`, `event`, ack) =>
         pubSub reply ack
