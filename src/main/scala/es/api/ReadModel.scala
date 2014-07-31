@@ -17,15 +17,18 @@ trait ReadModel {
   def handleEvent(event: EventData, position: ReadModelPosition, ack: () => Unit): Unit
 }
 
-trait ReadModelConnector {
-  /**
-   * Register the read model to start receiving events.
-   * @param name unique name of the read model
-   * @param model read model
-   * @param on aggregate types to subscribe on. If a type is added (on a already established
-   * @param at last position handled by the ReadModel. The event stream will start with the next event after that.
-   */
-  def registerReadModel(name: String, model: ReadModel, on: Traversable[AggregateType])(at: ReadModelPosition): Unit
+trait ReadModelRegistration {
+  def name: String
+  def model: ReadModel
+
+  /** Aggregate types to subscribe on.
+    * If an aggregate type is added (on a already known) then all events from the new type will be sent as well (retroactive).
+    * If an aggregate type is removed then the read model might still receive events of this type for some time.
+    */
+  def subscribeTo: Traversable[AggregateType]
+
+  /** The last position handled by the ReadModel. The event stream will start with the next event after that. */
+  def startFrom: ReadModelPosition
 }
 
 /** Position within the event stream. */
