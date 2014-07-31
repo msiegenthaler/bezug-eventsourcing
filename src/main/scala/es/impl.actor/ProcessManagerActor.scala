@@ -1,18 +1,30 @@
 package es.impl.actor
 
 import akka.actor.{ActorLogging, ActorRef, ActorSystem}
-import akka.persistence.{RecoveryCompleted, PersistentActor}
+import akka.persistence.{AtLeastOnceDelivery, RecoveryCompleted, PersistentActor}
 import es.api.{ProcessManager, EventData, ProcessManagerType}
 import PubSub._
+import es.impl.actor.PubSub.Producer.Publish
 
 class ProcessManagerActorManager[T <: ProcessManagerType](managerType: T)
   (system: ActorSystem, pubSub: ActorRef, eventBus: EventBusConfig) {
   import managerType._
 
+  private def subscriptionFor(unsub: ProcessManager.Unsubscribe) = unsub match {
+    case ProcessManager.UnsubscribeFromAggregate(aggregate) =>
+      val subscription = ProcessManager.SubscribeToAggregate(aggregate)
+    case ProcessManager.UnsubscribeFromAggregateType(aggregateType) =>
+      val subscription = ProcessManager.SubscribeToAggregateType(aggregateType)
+  }
+  private def topicFor(subscription: ProcessManager.Subscribe) = subscription match {
+    case ProcessManager.SubscribeToAggregate(id) => eventBus.topicFor(id)
+    case ProcessManager.SubscribeToAggregateType(at) => eventBus.topicFor(at)
+  }
+
   //TODO use at least once delivery for commands
-  private class ProcessManagerActor extends PersistentActor with ActorLogging {
+  private class ProcessManagerActor extends PersistentActor with AtLeastOnceDelivery with ActorLogging {
     import PubSub.Consumer._
-    def persistenceId = self.path.name
+    override def persistenceId = self.path.name
     private val id = {
       parseId(persistenceId)
         .getOrElse(throw new IllegalArgumentException(s"$persistenceId is not a valid id for process manager {$managerType}"))
@@ -32,12 +44,21 @@ class ProcessManagerActorManager[T <: ProcessManagerType](managerType: T)
             }
             result.foreach {
               case (commands, actions, next) =>
-                commands foreach { cmd =>
-                  //TODO send reliably (at least once?)
-                }
+                commands foreach (persist(_)(publishCommand))
 
-                //TODO process actions for subscriptions
-                actions
+                actions.foreach {
+                  case s: ProcessManager.Subscribe =>
+                    persist(SubscriptionAdded(nextSubscriptionId(), s)) { event =>
+                      startSubscription(event.id, event.request, Position.start)
+                    }
+                  case s: ProcessManager.Unsubscribe =>
+                    subscriptions.find(_._2.request == subscriptionFor(s)).foreach {
+                      case (id, _) =>
+                        persist(SubscriptionRemoved(id)) { event =>
+                          stopSubscription(id)
+                        }
+                    }
+                }
 
                 next match {
                   case Left(ProcessManager.Completed) => shutdown()
@@ -48,6 +69,9 @@ class ProcessManagerActorManager[T <: ProcessManagerType](managerType: T)
                 }
             }
         }
+
+      case PubSubAck(id) =>
+        persist(CommandDeliveredToPubSub(id)) { _ => confirmDelivery(id)}
     }
 
     def shutdown() = {
@@ -58,9 +82,9 @@ class ProcessManagerActorManager[T <: ProcessManagerType](managerType: T)
 
 
     def receiveRecover = {
-      case SetupSubscription(id, request) =>
+      case SubscriptionAdded(id, request) =>
         subscriptions += (id -> SubscriptionState(Position.start, request))
-      case DeleteSubscription(id: String) =>
+      case SubscriptionRemoved(id: String) =>
         subscriptions -= id
 
       case Message(sub, event: EventData, pos) =>
@@ -69,7 +93,10 @@ class ProcessManagerActorManager[T <: ProcessManagerType](managerType: T)
           case (_, _, Right(next)) => state = next
           case _ => ()
         }
-
+      case CommandEmitted(command) =>
+        publishCommand(command)
+      case CommandDeliveredToPubSub(id) =>
+        confirmDelivery(id)
       case Finished =>
         log.warning("Trying to load an already finished process $name ($id)")
         shutdown()
@@ -77,7 +104,7 @@ class ProcessManagerActorManager[T <: ProcessManagerType](managerType: T)
       case RecoveryCompleted =>
         log.debug(s"Loaded from event store.")
         subscriptions.foreach {
-          case (id, SubscriptionState(pos, request)) => setupSubscription(id, request, pos)
+          case (id, SubscriptionState(pos, request)) => startSubscription(id, request, pos)
         }
         log.debug(s"set up ${subscriptions.size} subscriptions, now ready.")
     }
@@ -87,12 +114,15 @@ class ProcessManagerActorManager[T <: ProcessManagerType](managerType: T)
       subscriptions += (subscriptionId -> nv)
     }
 
-    def setupSubscription(id: String, request: ProcessManager.Subscribe, position: Position) = {
-      val topic = request match {
-        case ProcessManager.SubscribeToAggregate(id) => eventBus.topicFor(id)
-        case ProcessManager.SubscribeToAggregateType(at) => eventBus.topicFor(at)
-      }
-      pubSub ! Subscribe(id, topic, position)
+    def startSubscription(id: String, request: ProcessManager.Subscribe, position: Position) = {
+      //TODO need to await confirmation and retry if it did not work..
+      // possibly need to use a child actor to do that
+      pubSub ! Subscribe(id, topicFor(request), position)
+    }
+    def stopSubscription(id: String) = {
+      //TODO need to await confirmation and retry if it did not work..
+      // possibly need to use a child actor to do that
+      pubSub ! Unsubscribe(id)
     }
 
     private var _nextSubscriptionId = 0
@@ -101,9 +131,20 @@ class ProcessManagerActorManager[T <: ProcessManagerType](managerType: T)
       _nextSubscriptionId = _nextSubscriptionId + 1
       s"$persistenceId#subscription-$id"
     }
+
+
+    def publishCommand(command: Command) = {
+      deliver(pubSub.path, delivery => Publish(eventBus.commandTopic, command, PubSubAck(delivery)))
+    }
   }
-  private case class SubscriptionState(position: Position, request: ProcessManager.Subscribe)
-  private case class SetupSubscription(id: String, request: ProcessManager.Subscribe)
-  private case class DeleteSubscription(id: String)
+
+  //events
+  private case class SubscriptionAdded(id: String, request: ProcessManager.Subscribe)
+  private case class SubscriptionRemoved(id: String)
+  private case class CommandEmitted(command: Command)
+  private case class CommandDeliveredToPubSub(id: Long)
   private case object Finished
+
+  private case class SubscriptionState(position: Position, request: ProcessManager.Subscribe)
+  private case class PubSubAck(id: Long)
 }

@@ -9,7 +9,10 @@ case class EventBusConfig(baseTopic: Topic) {
 
   def topicFor(aggregateType: AggregateType): Topic =
     aggregateEventTopic \ aggregateType.name
-
   def topicFor[A <: AggregateType](id: AggregateKey): Topic =
     topicFor(id.aggregateType) \ id.aggregateType.serializeId(id.id)
+
+
+  val commandTopic =
+    baseTopic \ "command"
 }
