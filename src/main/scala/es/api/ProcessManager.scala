@@ -27,9 +27,10 @@ object ProcessManager {
 }
 
 trait ProcessManagerType {
+  def name: String
+
   type Id
   type Command
-
   type Manager <: ProcessManager[Manager, Id, Command]
   trait BaseManager extends ProcessManager[Manager, Id, Command]
 

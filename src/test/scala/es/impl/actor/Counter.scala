@@ -4,6 +4,7 @@ import java.util.UUID
 import es.api.AggregateType
 
 object counter extends AggregateType {
+  def name = "Counter"
   type Id = UUID
 
   sealed trait Command {
@@ -45,7 +46,6 @@ object counter extends AggregateType {
 object CounterActorBinding extends AggregateBinding[counter.type] {
   val aggregateType = counter
   import es.impl.actor.counter._
-  def name = "counter"
   def commandToId(cmd: Command) = cmd.counter.toString
   def seed(id: String) = {
     val parsedId = UUID.fromString(id)

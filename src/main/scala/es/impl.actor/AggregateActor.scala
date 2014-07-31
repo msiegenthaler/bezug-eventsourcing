@@ -29,7 +29,7 @@ class AggregateActorManager[A <: AggregateType](binding: AggregateBinding[A])
 
   import binding.aggregateType._
 
-  protected def regionName = s"${binding.name}-aggregate"
+  protected def regionName = s"${binding.aggregateType.name}-aggregate"
   protected val shardCount = maxNodes * 10
 
   private val idExtractor: IdExtractor = {
@@ -48,7 +48,7 @@ class AggregateActorManager[A <: AggregateType](binding: AggregateBinding[A])
     private var eventSeq: Int = 0
     private var state = binding.seed(persistenceId)
 
-    log.debug(s"Starting aggregator actor for ${binding.name} with id $persistenceId")
+    log.debug(s"Starting aggregator actor for ${binding.aggregateType.name} with id $persistenceId")
 
     // evict from memory if not used for some time
     context.setReceiveTimeout(inMemoryTimeout)

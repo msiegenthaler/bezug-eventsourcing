@@ -16,6 +16,8 @@ trait AggregateRoot[Self <: AggregateRoot[Self, Id, Command, Event, Error], Id, 
 
 /** A type of aggregate. Implement using an object. */
 trait AggregateType {
+  def name: String
+
   type Id
   type Command
   type Event

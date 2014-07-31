@@ -5,6 +5,7 @@ import java.util.UUID
 import es.api.AggregateType
 
 object veranlagung extends AggregateType {
+  def name = "Veranlagung"
   type Id = UUID
 
   //Commands
