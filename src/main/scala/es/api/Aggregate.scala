@@ -45,7 +45,10 @@ trait AggregateType {
   }
   object Event {
     private implicit def eventTypeable: Typeable[Event] = types._2
-    def unapply(a: Any): Option[Event] = a.cast[Event]
+    def unapply(a: Any): Option[Event] = a match {
+      case EventData(_, _, event) => Some(event)
+      case a => a.cast[Event]
+    }
 
     object Data {
       def apply(aggregate: Id, sequence: Long, event: Event) =
