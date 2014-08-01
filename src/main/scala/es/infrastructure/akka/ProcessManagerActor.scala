@@ -139,7 +139,7 @@ class ProcessManagerActorManager[T <: ProcessManagerType](managerType: T)
       private var _nextSubscriptionId = 0
 
       def startSubscription(id: String, request: ProcessManager.Subscribe, position: Position) = {
-        val msg = Subscribe(id, topicFor(request), position)
+        val msg = Subscribe(id, Set(topicFor(request)), position)
         val props = SubscriptionManager.props(pubSub, msg)
         val actor = context actorOf props
         subscriptionManagers += id -> actor

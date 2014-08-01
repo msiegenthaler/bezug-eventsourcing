@@ -5,12 +5,12 @@ sealed trait Event
 
 object Producer {
   /** Publishes data on the topic. After successful (persistent) completion, it replies with 'onPublished'. */
-  case class Publish(topic: Topic, data: Any, onPublished: Any) extends Command
+  case class Publish(to: Topic, data: Any, onPublished: Any) extends Command
 }
 
 object Consumer {
   /** Subscribe to messages on a topic. Is answered with subscribed, then the sender starts receiving Messages. */
-  case class Subscribe(id: SubscriptionId, topic: Topic, startAt: Position = Position.start) extends Command
+  case class Subscribe(id: SubscriptionId, to: Set[Topic], startAt: Position = Position.start) extends Command
   case class Subscribed(id: SubscriptionId) extends Event
   /** Could not set up a subscription, because the provided position is invalid. The subscription might have been deleted. */
   case class InvalidPosition(id: SubscriptionId, pos: Position) extends Event
