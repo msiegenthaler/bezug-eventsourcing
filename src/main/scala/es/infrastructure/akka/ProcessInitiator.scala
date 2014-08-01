@@ -1,6 +1,6 @@
 package es.infrastructure.akka
 
-import akka.actor.{ActorRef, Props}
+import akka.actor.{ActorLogging, ActorRef, Props}
 import akka.persistence.{RecoveryCompleted, AtLeastOnceDelivery, PersistentActor}
 import es.api.{EventData, ProcessManager}
 import pubsub.{SubscriptionManager, PositionUpdate, Consumer, Position}
@@ -24,7 +24,7 @@ private object ProcessInitiator {
     name: String, subscriptions: Traversable[ProcessManager.Subscribe],
     receiver: ActorRef, initiate: PartialFunction[EventData, String],
     pubSub: ActorRef, eventBusConfig: EventBusConfig)
-    extends PersistentActor with AtLeastOnceDelivery {
+    extends PersistentActor with AtLeastOnceDelivery with ActorLogging {
     import Consumer._
     override val persistenceId = s"$name-processManager-initiator"
     val topics = subscriptions.map(eventBusConfig.topicFor).toSet
@@ -39,6 +39,7 @@ private object ProcessInitiator {
         }
 
         initiate.lift(event).foreach { responsible =>
+          log.debug(s"initiating ProcessManager: $responsible")
           persist(InitiationRequested(responsible, event))(handleInitiation)
         }
 
@@ -54,6 +55,7 @@ private object ProcessInitiator {
       case Initiated(deliveryId) => confirmDelivery(deliveryId)
 
       case RecoveryCompleted =>
+        log.debug(s"Started, current position is $position")
         startSubscription()
     }
 
