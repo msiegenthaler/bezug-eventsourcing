@@ -44,7 +44,7 @@ object veranlagung extends AggregateType {
       case _ => Unhandled
     }
 
-    def applyEvent(e: Event) = e match {
+    def applyEvent = {
       case FilledOut(einkommen) => copy(einkommen = Some(einkommen))
       case Submitted => copy(finished = true)
     }

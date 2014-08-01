@@ -35,7 +35,7 @@ object counter extends AggregateType {
       case Kill(`id`) => throw new RuntimeException("Got a 'Kill' command (expected)")
       case _ => Unhandled
     }
-    def applyEvent(e: Event) = e match {
+    def applyEvent = {
       case Incremented(value) => copy(value = value)
       case WasSet(value) => copy(value = value)
     }

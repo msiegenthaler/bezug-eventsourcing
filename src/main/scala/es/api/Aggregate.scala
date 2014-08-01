@@ -11,7 +11,7 @@ import scalaz._
 /** Root of an aggregate. */
 trait AggregateRoot[Self <: AggregateRoot[Self, Id, Command, Event, Error], Id, Command, Event, Error] extends Entity[Id] {
   def execute(c: Command): Validation[Error, Seq[Event]]
-  def applyEvent(e: Event): Self
+  def applyEvent: PartialFunction[Event, Self]
 }
 
 /** A type of aggregate. Implement using an object. */

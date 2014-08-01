@@ -89,7 +89,8 @@ class AggregateActorManager[A <: AggregateType](aggregateType: A)
     }
 
     def handleEvent(event: Event) = {
-      state = state applyEvent event
+      state = state.applyEvent.lift(event).
+        getOrElse(throw new IllegalStateException(s"Cannot apply event $event to $state. Not handled."))
       //at-least-once trait replays it if needed (no ack received)
       val eventData = Event.Data(state.id, eventSeq, event)
       deliver(pubSub.path, id => Producer.Publish(topics, eventData, PubSubAck(id)))
