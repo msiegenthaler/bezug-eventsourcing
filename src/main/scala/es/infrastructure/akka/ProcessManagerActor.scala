@@ -5,8 +5,9 @@ import akka.actor._
 import akka.contrib.pattern.{ClusterSingletonManager, ClusterSharding}
 import akka.contrib.pattern.ShardRegion._
 import akka.persistence.{AtLeastOnceDelivery, RecoveryCompleted, PersistentActor}
-import es.api.{ProcessManager, EventData, ProcessManagerType}
 import pubsub._
+import es.api.{ProcessManager, EventData, ProcessManagerType}
+import es.api.ProcessManager.SubscriptionAction
 import es.infrastructure.akka.ProcessInitiator._
 
 /**
@@ -73,31 +74,13 @@ class ProcessManagerActorManager[T <: ProcessManagerType](managerType: T)
                 case event: EventData => state.handle.lift(event)
                 case _ => None
               }) foreach {
-                case (commands, actions, next) =>
-                  commands foreach (persist(_)(publishCommand))
-
-                  actions.foreach {
-                    case s: ProcessManager.Subscribe =>
-                      persist(SubscriptionAdded(nextSubscriptionId(), s)) { event =>
-                        subscriptions += (event.id -> SubscriptionState(Position.start, s))
-                        startSubscription(event.id, event.request, Position.start)
-                      }
-                    case s: ProcessManager.Unsubscribe =>
-                      subscriptions.find(_._2.request == subscriptionFor(s)).foreach {
-                        case (id, _) =>
-                          persist(SubscriptionRemoved(id)) { event =>
-                            subscriptions -= id
-                            stopSubscription(id)
-                          }
-                      }
-                  }
-
-                  next match {
-                    case Left(ProcessManager.Completed) => shutdown()
-                      persist(Finished)(_ => shutdown)
-                    case Right(newState) =>
-                      state = newState
-                  }
+                case Continue(next, commands, actions) =>
+                  handleCommands(commands)
+                  handleSubscriptionActions(actions)
+                  state = next
+                case Completed(commands) =>
+                  handleCommands(commands)
+                  persist(Finished)(_ => shutdown)
               }
           }
 
@@ -113,6 +96,26 @@ class ProcessManagerActorManager[T <: ProcessManagerType](managerType: T)
           context stop self
       }
 
+      private def handleCommands(commands: Seq[Command]) = {
+        commands foreach (persist(_)(publishCommand))
+      }
+
+      private def handleSubscriptionActions(actions: Seq[SubscriptionAction]) = actions.foreach {
+        case s: ProcessManager.Subscribe =>
+          persist(SubscriptionAdded(nextSubscriptionId(), s)) { event =>
+            subscriptions += (event.id -> SubscriptionState(Position.start, s))
+            startSubscription(event.id, event.request, Position.start)
+          }
+        case s: ProcessManager.Unsubscribe =>
+          subscriptions.find(_._2.request == subscriptionFor(s)).foreach {
+            case (id, _) =>
+              persist(SubscriptionRemoved(id)) { event =>
+                subscriptions -= id
+                stopSubscription(id)
+              }
+          }
+      }
+
       def receiveRecover = {
         case SubscriptionAdded(id, request) =>
           subscriptions += (id -> SubscriptionState(Position.start, request))
@@ -122,8 +125,8 @@ class ProcessManagerActorManager[T <: ProcessManagerType](managerType: T)
         case Message(sub, event: EventData, pos) =>
           updateSubscription(sub, pos)
           state.handle.lift(event) foreach {
-            case (_, _, Right(next)) => state = next
-            case _ => ()
+            case Continue(next, _, _) => state = next
+            case Completed(_) => ()
           }
         case CommandEmitted(command) =>
           publishCommand(command)

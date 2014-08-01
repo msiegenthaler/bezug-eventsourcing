@@ -15,10 +15,10 @@ class CounterProcessManager extends ProcessManagerType {
   type Command = PairThem
   case class Manager(id: UUID, round: Int) extends BaseManager {
     def handle = {
-      case EventData(_, _, _, Incremented(i)) if i % 2 == 0 =>
-        val cmd = PairThem(i % 2, round)
-        (cmd :: Nil, Nil, Right(copy(round = round + 1)))
+      case counter.EventData(_, _, Incremented(i)) if i % 2 == 0 =>
+        Continue(addRound) + PairThem(i % 2, round)
     }
+    private def addRound = copy(round = round + 1)
   }
 
   def triggeredBy = SubscribeToAggregateType(counter) :: Nil

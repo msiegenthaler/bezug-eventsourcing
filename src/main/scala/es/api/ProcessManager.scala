@@ -11,12 +11,9 @@ import ProcessManager._
  * in sequence, event ordering between aggregates is arbitrary, but is stable (does not change when the process manager
  * is loaded from the store).
  */
-trait ProcessManager[Self <: ProcessManager[Self, Id, Command], Id, Command] {
+trait ProcessManager[Self <: ProcessManager[Self, Id, Command, Next], Id, Command, Next] {
   def id: Id
-
-  type Next = Either[Completed.type, Self]
-  type Result = (Seq[Command], Seq[SubscriptionAction], Next)
-  def handle: PartialFunction[EventData, Result]
+  def handle: PartialFunction[EventData, Next]
 }
 object ProcessManager {
   case object Completed
@@ -36,8 +33,20 @@ trait ProcessManagerType {
 
   type Id
   type Command
-  type Manager <: ProcessManager[Manager, Id, Command]
-  trait BaseManager extends ProcessManager[Manager, Id, Command]
+  type Manager <: ProcessManager[Manager, Id, Command, Next]
+  trait BaseManager extends ProcessManager[Manager, Id, Command, Next]
+
+  sealed trait Next
+  case class Completed(commands: Seq[Command] = Seq.empty) extends Next {
+    def +(cmd: Command) = copy(commands = commands :+ cmd)
+  }
+  case class Continue(state: Manager,
+    commands: Seq[Command] = Seq.empty,
+    subscriptionActions: Seq[SubscriptionAction] = Seq.empty) extends Next {
+    def +(cmd: Command) = copy(commands = commands :+ cmd)
+    def +(action: SubscriptionAction) = copy(subscriptionActions = subscriptionActions :+ action)
+  }
+
 
   /** Subscribe to events needed by #initiate. */
   def triggeredBy: Traversable[Subscribe]
