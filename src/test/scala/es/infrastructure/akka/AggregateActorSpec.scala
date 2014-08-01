@@ -52,9 +52,10 @@ class AggregateActorSpec(_system: ActorSystem) extends TestKit(_system) with Imp
   }
   def expectNoEvent() = pubSub.expectNoMsg()
   def expectEvent(event: EventData) = {
-    val topic = eventBusConfig.topicFor(event.aggregateKey)
+    val aggregateTopic = eventBusConfig.topicFor(event.aggregateKey)
+    val topics = Set(eventBusConfig.topicFor(event.aggregateType), aggregateTopic)
     pubSub.expectMsgPF() {
-      case Producer.Publish(`topic`, `event`, ack) =>
+      case Producer.Publish(`topics`, `event`, ack) =>
         pubSub reply ack
     }
   }

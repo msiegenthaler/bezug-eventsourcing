@@ -46,7 +46,7 @@ class AggregateActorManager[A <: AggregateType](aggregateType: A)
       parseId(persistenceId)
         .getOrElse(throw new IllegalArgumentException(s"$persistenceId is not a valid id for aggregate $name"))
     }
-    val topic = eventBusConfig.topicFor(AggregateKey(id))
+    val topics = Set(eventBusConfig.topicFor(aggregateType), eventBusConfig.topicFor(AggregateKey(id)))
 
     private var eventSeq: Long = 0
     private var state = seed(id)
@@ -92,7 +92,7 @@ class AggregateActorManager[A <: AggregateType](aggregateType: A)
       state = state applyEvent event
       //at-least-once trait replays it if needed (no ack received)
       val eventData = Event.Data(state.id, eventSeq, event)
-      deliver(pubSub.path, id => Producer.Publish(topic, eventData, PubSubAck(id)))
+      deliver(pubSub.path, id => Producer.Publish(topics, eventData, PubSubAck(id)))
       eventSeq = eventSeq + 1
     }
     def publishEvent(event: EventData) = {

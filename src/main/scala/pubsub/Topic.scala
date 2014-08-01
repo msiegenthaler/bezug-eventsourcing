@@ -1,6 +1,6 @@
 package pubsub
 
-/** Topic. Is hierarchical, subscribing to the parent topic includes all subtopics. */
+/** Topic. Hierarchical for naming only, subscriptions do not include child topics. */
 case class Topic private(path: List[String]) {
   def parent = Topic(path.dropRight(1))
   def \(child: String) = {

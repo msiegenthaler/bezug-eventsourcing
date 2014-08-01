@@ -4,8 +4,8 @@ sealed trait Command
 sealed trait Event
 
 object Producer {
-  /** Publishes data on the topic. After successful (persistent) completion, it replies with 'onPublished'. */
-  case class Publish(to: Topic, data: Any, onPublished: Any) extends Command
+  /** Publishes data on the topics. After successful (persistent) completion, it replies with 'onPublished'. */
+  case class Publish(to: Set[Topic], data: Any, onPublished: Any) extends Command
 }
 
 object Consumer {
