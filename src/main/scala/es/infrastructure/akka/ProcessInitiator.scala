@@ -5,7 +5,8 @@ import akka.persistence.{RecoveryCompleted, AtLeastOnceDelivery, PersistentActor
 import es.api.{EventData, ProcessManager}
 import pubsub.{SubscriptionManager, PositionUpdate, Consumer, Position}
 
-object ProcessInitiator {
+/** Sets up a subscription and checks if a initiated new process managers. */
+private object ProcessInitiator {
   sealed trait Command
   sealed trait Event
 
@@ -13,12 +14,10 @@ object ProcessInitiator {
   case class StartProcessManager(processManagerId: String, withEvent: EventData, deliveryId: Long) extends Event
   case class ProcessStarted(deliveryId: Long) extends Command
 
-  def props(pubSub: ActorRef, receiver: ActorRef, eventBusConfig: EventBusConfig)(name: String, subscriptions: Traversable[ProcessManager.Subscribe], initiate: PartialFunction[EventData, String]) =
+  def props(pubSub: ActorRef, receiver: ActorRef, eventBusConfig: EventBusConfig)
+    (name: String, subscriptions: Traversable[ProcessManager.Subscribe], initiate: PartialFunction[EventData, String]) = {
     Props(new InitiatorActor(name, subscriptions, receiver, initiate, pubSub, eventBusConfig))
-
-  private case class PositionUpdated(update: PositionUpdate)
-  private case class InitiationRequested(processManagerId: String, event: EventData)
-  private case class Initiated(id: Long)
+  }
 
   //TODO add snapshotting (big performance improvement)
   private class InitiatorActor(
@@ -67,4 +66,9 @@ object ProcessInitiator {
       deliver(receiver.path, i => StartProcessManager(req.processManagerId, req.event, i))
     }
   }
+
+  sealed trait InitiatorActorEvent
+  private case class PositionUpdated(update: PositionUpdate) extends InitiatorActorEvent
+  private case class InitiationRequested(processManagerId: String, event: EventData) extends InitiatorActorEvent
+  private case class Initiated(id: Long) extends InitiatorActorEvent
 }
