@@ -21,6 +21,10 @@ object Consumer {
   }
   case class AckMessage(id: SubscriptionId, positionUpdate: PositionUpdate) extends Command
 
+  /** Change the subscription by adding/removing topics. */
+  case class ModifySubscription(id: SubscriptionId, add: Set[Topic], remove: Set[Topic]) extends Command
+  case class SubscriptionModified(id: SubscriptionId, positionUpdate: PositionUpdate) extends Event
+
   /** Cancel a subscription. The subscription state will still be available. */
   case class Unsubscribe(id: SubscriptionId) extends Command
   case class Unsubscribed(id: SubscriptionId) extends Event
