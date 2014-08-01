@@ -3,7 +3,7 @@ package pubsub
 /** Position within a subscription (opaque for users). */
 trait Position
 object Position {
-  val start = StartPosition
+  val start: Position = StartPosition
 }
 
 case object StartPosition extends Position

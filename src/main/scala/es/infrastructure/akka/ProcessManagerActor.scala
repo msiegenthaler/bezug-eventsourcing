@@ -24,7 +24,8 @@ class ProcessManagerActorManager[T <: ProcessManagerType](managerType: T)
   }
 
   private val initiator = {
-    val props = ProcessInitiator.props(pubSub, region)(regionName, triggeredBy, initiate.andThen(serializeId))
+    val props = ProcessInitiator
+      .props(pubSub, region, eventBusConfig)(regionName, triggeredBy, initiate.andThen(serializeId))
     system.actorOf(ClusterSingletonManager.props(props, regionName, PoisonPill, None))
   }
 
