@@ -24,10 +24,12 @@ class ProcessManagerActorManager[T <: ProcessManagerType](managerType: T)
   }
 
   private val initiator = {
-    val props = ProcessInitiator
-      .props(pubSub, region, eventBusConfig)(regionName, triggeredBy, initiate.andThen(serializeId))
+    val fun = initiate.andThen(serializeId)
+    val props = ProcessInitiator.props(pubSub, region, eventBusConfig)(s"$regionName-initiator", triggeredBy, fun)
     system.actorOf(ClusterSingletonManager.props(props, regionName, PoisonPill, None))
   }
+
+  val commandTopics = Set(eventBusConfig.commandTopic)
 
   /** Manages a ProcessManager instance. */
   object ProcessManagerActor {
@@ -154,7 +156,7 @@ class ProcessManagerActorManager[T <: ProcessManagerType](managerType: T)
       private var subscriptionManagers: Map[String, ActorRef] = Map.empty
 
       def publishCommand(command: Command) = {
-        deliver(pubSub.path, delivery => Producer.Publish(Set(eventBusConfig.commandTopic), command, PubSubAck(delivery)))
+        deliver(pubSub.path, delivery => Producer.Publish(commandTopics, command, PubSubAck(delivery)))
       }
 
       def shutdown() = {
