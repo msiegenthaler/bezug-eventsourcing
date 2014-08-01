@@ -1,5 +1,6 @@
 package es.infrastructure.akka
 
+import scala.concurrent.duration._
 import akka.actor._
 import akka.contrib.pattern.{ClusterSingletonManager, ClusterSharding}
 import akka.contrib.pattern.ShardRegion._
@@ -8,9 +9,12 @@ import es.api.{ProcessManager, EventData, ProcessManagerType}
 import pubsub._
 import es.infrastructure.akka.ProcessInitiator._
 
+/**
+ * Runs the process manager instance as actors and starts them as needed.
+ */
 class ProcessManagerActorManager[T <: ProcessManagerType](managerType: T)
   (system: ActorSystem, pubSub: ActorRef, eventBusConfig: EventBusConfig,
-    shardCount: Int = 100) {
+    shardCount: Int = 100, inMemoryTimeout: Duration = 5.minutes) {
   import managerType._
 
   private val idExtractor: IdExtractor = {
@@ -35,17 +39,17 @@ class ProcessManagerActorManager[T <: ProcessManagerType](managerType: T)
   object ProcessManagerActor {
     def props = Props(new ProcessManagerActor)
 
-    //events
-    private case class SubscriptionAdded(id: String, request: ProcessManager.Subscribe)
-    private case class SubscriptionRemoved(id: String)
-    private case class CommandEmitted(command: Command)
-    private case class CommandDeliveredToPubSub(id: Long)
-    private case object Finished
+    sealed trait ProcessManagerActorEvent
+    private case class SubscriptionAdded(id: String, request: ProcessManager.Subscribe) extends ProcessManagerActorEvent
+    private case class SubscriptionRemoved(id: String) extends ProcessManagerActorEvent
+    private case class CommandEmitted(command: Command) extends ProcessManagerActorEvent
+    private case class CommandDeliveredToPubSub(id: Long) extends ProcessManagerActorEvent
+    private case object Finished extends ProcessManagerActorEvent
 
     private case class SubscriptionState(position: Position, request: ProcessManager.Subscribe)
     private case class PubSubAck(id: Long)
+    private case object PassivateProcessManager
 
-    //TODO add timeout
     //TODO handle initiate
     //TODO deduplication of events?
     private class ProcessManagerActor extends PersistentActor with AtLeastOnceDelivery with ActorLogging {
@@ -57,6 +61,7 @@ class ProcessManagerActorManager[T <: ProcessManagerType](managerType: T)
       }
       private var state: Manager = seed(id)
 
+      context.setReceiveTimeout(inMemoryTimeout)
 
       def receiveCommand = {
         case message: Message =>
@@ -98,6 +103,14 @@ class ProcessManagerActorManager[T <: ProcessManagerType](managerType: T)
 
         case PubSubAck(id) =>
           persist(CommandDeliveredToPubSub(id)) { _ => confirmDelivery(id)}
+
+        case ReceiveTimeout =>
+          //ensure that we have no pending messages
+          log.debug(s"Passivation initiated (due to timeout)")
+          context.parent ! Passivate(PassivateProcessManager)
+        case PassivateProcessManager =>
+          log.debug(s"Passivation completed, actor will stop")
+          context stop self
       }
 
       def receiveRecover = {
