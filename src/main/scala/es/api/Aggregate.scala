@@ -29,6 +29,7 @@ trait AggregateType {
     protected implicit def errorToValidation(error: Error): Validation[Error, Nothing] = error.fail
     protected implicit def eventToValidation(event: Event): Validation[Nothing, Seq[Event]] = Seq(event).success
     protected implicit def eventsToValidation(events: Seq[Event]): Validation[Nothing, Seq[Event]] = events.success
+    protected implicit def unitToNoEvents(r: Unit): Validation[Nothing, Seq[Event]] = Seq.empty.success
   }
 
   def seed(id: Id): Root
