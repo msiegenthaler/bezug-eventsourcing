@@ -9,7 +9,7 @@ import pubsub._
 import es.infrastructure.akka.ProcessInitiator._
 
 class ProcessManagerActorManager[T <: ProcessManagerType](managerType: T)
-  (system: ActorSystem, pubSub: ActorRef, eventBus: EventBusConfig,
+  (system: ActorSystem, pubSub: ActorRef, eventBusConfig: EventBusConfig,
     shardCount: Int = 100) {
   import managerType._
 
@@ -139,7 +139,7 @@ class ProcessManagerActorManager[T <: ProcessManagerType](managerType: T)
       private var _nextSubscriptionId = 0
 
       def startSubscription(id: String, request: ProcessManager.Subscribe, position: Position) = {
-        val msg = Subscribe(id, Set(topicFor(request)), position)
+        val msg = Subscribe(id, Set(eventBusConfig.topicFor(request)), position)
         val props = SubscriptionManager.props(pubSub, msg)
         val actor = context actorOf props
         subscriptionManagers += id -> actor
@@ -153,7 +153,7 @@ class ProcessManagerActorManager[T <: ProcessManagerType](managerType: T)
       private var subscriptionManagers: Map[String, ActorRef] = Map.empty
 
       def publishCommand(command: Command) = {
-        deliver(pubSub.path, delivery => Producer.Publish(eventBus.commandTopic, command, PubSubAck(delivery)))
+        deliver(pubSub.path, delivery => Producer.Publish(eventBusConfig.commandTopic, command, PubSubAck(delivery)))
       }
 
       def shutdown() = {
@@ -169,9 +169,5 @@ class ProcessManagerActorManager[T <: ProcessManagerType](managerType: T)
       ProcessManager.SubscribeToAggregate(aggregate)
     case ProcessManager.UnsubscribeFromAggregateType(aggregateType) =>
       ProcessManager.SubscribeToAggregateType(aggregateType)
-  }
-  private def topicFor(subscription: ProcessManager.Subscribe) = subscription match {
-    case ProcessManager.SubscribeToAggregate(id) => eventBus.topicFor(id)
-    case ProcessManager.SubscribeToAggregateType(at) => eventBus.topicFor(at)
   }
 }
