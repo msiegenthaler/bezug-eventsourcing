@@ -39,9 +39,9 @@ object SubscriptionManager {
     }
 
     when(Active) {
-      case Event(m: Message, _) if m.subscription == id =>
+      case Event(m: Message, pos) if m.subscription == id =>
         context.parent ! m
-        stay() using (m.position)
+        stay() using (m.positionUpdate(pos))
       case Event(Unsubscribe(`id`), _) =>
         context.parent ! Unsubscribe(id)
         goto(Unsubscribing)

@@ -59,7 +59,7 @@ class ProcessManagerActorManager[T <: ProcessManagerType](managerType: T)
         case message: Message =>
           persist(message) {
             case msg: Message =>
-              persist(msg) { msg => pubSub ! Next(msg.subscription)}
+              persist(msg) { msg => pubSub ! msg.ack}
 
               (msg.data match {
                 case event: EventData => state.handle.lift(event)
@@ -125,8 +125,9 @@ class ProcessManagerActorManager[T <: ProcessManagerType](managerType: T)
           log.debug(s"set up ${subscriptions.size} subscriptions, now ready.")
       }
 
-      def updateSubscription(subscriptionId: String, pos: Position) = {
-        val nv = subscriptions(subscriptionId).copy(position = pos)
+      def updateSubscription(subscriptionId: String, update: PositionUpdate) = {
+        val old = subscriptions(subscriptionId)
+        val nv = old.copy(position = update(old.position))
         subscriptions += (subscriptionId -> nv)
       }
       private var subscriptions: Map[String, SubscriptionState] = Map.empty

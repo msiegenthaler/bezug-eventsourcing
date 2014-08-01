@@ -1,9 +1,14 @@
 package pubsub
 
-import akka.util.ByteString
-
-/** Position with a subscription (opaque for users). */
-case class Position(serialized: ByteString)
+/** Position within a subscription (opaque for users). */
+trait Position
 object Position {
-  def start = Position(ByteString.empty)
+  val start = StartPosition
+}
+
+case object StartPosition extends Position
+
+/** Update to a position. */
+trait PositionUpdate {
+  def apply(pos: Position): Position
 }

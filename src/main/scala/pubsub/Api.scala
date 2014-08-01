@@ -16,8 +16,10 @@ object Consumer {
   case class InvalidPosition(id: SubscriptionId, pos: Position) extends Event
 
   /** Will be sent to the subscriber, answer with Next (backpressure). */
-  case class Message(subscription: SubscriptionId, data: Any, position: Position) extends Event
-  case class Next(id: SubscriptionId) extends Command
+  case class Message(subscription: SubscriptionId, data: Any, positionUpdate: PositionUpdate) extends Event {
+    def ack = AckMessage(subscription, positionUpdate)
+  }
+  case class AckMessage(id: SubscriptionId, positionUpdate: PositionUpdate) extends Command
 
   /** Cancel a subscription. The subscription state will still be available. */
   case class Unsubscribe(id: SubscriptionId) extends Command
