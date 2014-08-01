@@ -1,7 +1,7 @@
 package es.infrastructure.akka
 
 import es.api.{AggregateKey, AggregateType}
-import es.infrastructure.akka.PubSub.Topic
+import pubsub.Topic
 
 case class EventBusConfig(baseTopic: Topic) {
   val aggregateEventTopic =

@@ -6,7 +6,7 @@ import akka.testkit.{TestProbe, ImplicitSender, TestKit}
 import akka.util.Timeout
 import com.typesafe.config.ConfigFactory
 import es.api.{AggregateType, EventData}
-import es.infrastructure.akka.PubSub.Topic
+import pubsub._
 import org.scalatest.{WordSpecLike, BeforeAndAfterAll, Matchers}
 import scala.concurrent.duration._
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -54,7 +54,7 @@ class AggregateActorSpec(_system: ActorSystem) extends TestKit(_system) with Imp
   def expectEvent(event: EventData) = {
     val topic = eventBusConfig.topicFor(event.aggregateKey)
     pubSub.expectMsgPF() {
-      case PubSub.Producer.Publish(`topic`, `event`, ack) =>
+      case Producer.Publish(`topic`, `event`, ack) =>
         pubSub reply ack
     }
   }

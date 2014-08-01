@@ -5,7 +5,7 @@ import akka.contrib.pattern.{ClusterSingletonManager, ClusterSharding}
 import akka.contrib.pattern.ShardRegion._
 import akka.persistence.{AtLeastOnceDelivery, RecoveryCompleted, PersistentActor}
 import es.api.{ProcessManager, EventData, ProcessManagerType}
-import PubSub._
+import pubsub._
 import es.infrastructure.akka.ProcessInitiator._
 
 class ProcessManagerActorManager[T <: ProcessManagerType](managerType: T)
@@ -46,7 +46,7 @@ class ProcessManagerActorManager[T <: ProcessManagerType](managerType: T)
     //TODO handle initiate
     //TODO deduplication?
     private class ProcessManagerActor extends PersistentActor with AtLeastOnceDelivery with ActorLogging {
-      import PubSub.Consumer._
+      import Consumer._
       override def persistenceId = self.path.name
       private val id = {
         parseId(persistenceId)
@@ -139,7 +139,7 @@ class ProcessManagerActorManager[T <: ProcessManagerType](managerType: T)
 
       def startSubscription(id: String, request: ProcessManager.Subscribe, position: Position) = {
         val msg = Subscribe(id, topicFor(request), position)
-        val props = PubSub.SubscriptionManager.props(pubSub, msg)
+        val props = SubscriptionManager.props(pubSub, msg)
         val actor = context actorOf props
         subscriptionManagers += id -> actor
       }

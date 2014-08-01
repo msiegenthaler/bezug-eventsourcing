@@ -3,7 +3,7 @@ package es.infrastructure.akka
 import akka.actor.{ActorRef, Props}
 import akka.persistence.{RecoveryCompleted, AtLeastOnceDelivery, PersistentActor}
 import es.api.{EventData, ProcessManager}
-import es.infrastructure.akka.PubSub.Position
+import pubsub.{Consumer, Position}
 
 object ProcessInitiator {
   sealed trait Command
@@ -26,7 +26,7 @@ object ProcessInitiator {
     receiver: ActorRef, initiate: PartialFunction[EventData, String],
     pubSub: ActorRef)
     extends PersistentActor with AtLeastOnceDelivery {
-    import PubSub.Consumer._
+    import Consumer._
     override val persistenceId = s"$name-processManager-initiator"
 
     //TODO subscribe as requested
@@ -56,8 +56,8 @@ object ProcessInitiator {
       case i: InitiationRequested => handleInitiation(i)
       case Initiated(deliveryId) => confirmDelivery(deliveryId)
       case RecoveryCompleted =>
-        //TODO
-        PubSub.SubscriptionManager.props(pubSub, Subscribe(id, topic, start))
+      //TODO
+      //SubscriptionManager.props(pubSub, Subscribe(id, topic, start))
     }
 
     private def handleInitiation(req: InitiationRequested) = {

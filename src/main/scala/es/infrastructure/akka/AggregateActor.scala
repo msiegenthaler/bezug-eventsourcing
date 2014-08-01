@@ -1,17 +1,17 @@
 package es.infrastructure.akka
 
+import scala.concurrent.duration._
+import scala.concurrent.{ExecutionContext, Future}
 import akka.actor._
 import akka.contrib.pattern.ClusterSharding
 import akka.contrib.pattern.ShardRegion._
 import akka.pattern.ask
 import akka.persistence.{AtLeastOnceDelivery, PersistentActor, RecoveryCompleted}
 import akka.util.Timeout
-import es.api.{EventData, AggregateType}
-
-import scala.concurrent.duration._
-import scala.concurrent.{ExecutionContext, Future}
 import scalaz.Scalaz._
 import scalaz._
+import es.api.{EventData, AggregateType}
+import pubsub._
 
 /**
  * Runs an aggregate type as an akka actor.
@@ -92,7 +92,7 @@ class AggregateActorManager[A <: AggregateType](aggregateType: A)
       state = state applyEvent event
       //at-least-once trait replays it if needed (no ack received)
       val eventData = Event.Data(state.id, eventSeq, event)
-      deliver(pubSub.path, id => PubSub.Producer.Publish(topic, eventData, PubSubAck(id)))
+      deliver(pubSub.path, id => Producer.Publish(topic, eventData, PubSubAck(id)))
       eventSeq = eventSeq + 1
     }
     def publishEvent(event: EventData) = {
