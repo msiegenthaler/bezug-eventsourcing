@@ -24,7 +24,7 @@ class CounterProcessManager extends ProcessManagerType {
   def triggeredBy = SubscribeToAggregateType(counter) :: Nil
   def initiate = {
     //one process manager per counter
-    case EventData(counter, id, _, _) => id.asInstanceOf[UUID]
+    case counter.EventData(id, _, _) => id
   }
 
   def serializeId(id: Id) = id.toString

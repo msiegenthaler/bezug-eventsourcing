@@ -70,6 +70,20 @@ trait AggregateType {
     override def toString = s"AggregateKey($aggregateType, $id)"
   }
 
+  object EventData {
+    def apply(aggregate: Id, sequence: Long, event: Event) = {
+      es.api.EventData(AggregateType.this)(aggregate, sequence, event)
+    }
+    def unapply(e: es.api.EventData): Option[(Id, Long, Event)] = {
+      if (e.aggregateType == AggregateType.this) {
+        val id = e.aggregate.asInstanceOf[Id]
+        val event = Event.unapply(e.event)
+          .getOrElse(throw new IllegalArgumentException(s"Wrong event type for aggregate $name: ${e.event.getClass}"))
+        Some(id, e.sequence, event)
+      } else None
+    }
+  }
+
   protected def typeInfo[Cmd <: Command : Typeable, Ev <: Event : Typeable, Err <: Error : Typeable]: (Typeable[Cmd], Typeable[Ev], Typeable[Err]) = {
     (implicitly, implicitly, implicitly)
   }
