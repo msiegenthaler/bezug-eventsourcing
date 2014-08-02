@@ -1,5 +1,6 @@
 package es.infrastructure.akka
 
+import scala.collection.immutable.Queue
 import scala.concurrent.duration._
 import scala.concurrent.{ExecutionContext, Future}
 import akka.actor._
@@ -13,18 +14,22 @@ import scalaz._
 import es.api.{EventData, AggregateType}
 import pubsub._
 
+
+case class OnEvent(event: EventData, ack: Any)
+
 /**
  * Runs an aggregate type as an akka actor.
  * The individual aggregate roots are distributed across the cluster using cluster sharding. Akka persistence
- * is used for persistence of the events. All persisted events are published to the event bus.
- * After an aggregate has not received commands for some time it is removed
- * from memory. At the next command it is again constructed from the persistent events in the event store.
+ * is used for persistence of the events. All persisted events are sent to the event handler as OnEvent
+ * messages. This messages must be acknowledged.
+ *
+ * When an aggregate has not received commands for some time it is removed from memory. At the next command
+ * it is again constructed from the persistent events in the event store. This is transparent to the user.
  *
  * @tparam A the aggregate type
  */
-class AggregateActorManager[A <: AggregateType](aggregateType: A)
-  (system: ActorSystem, pubSub: ActorRef, eventBusConfig: EventBusConfig,
-    shardCount: Int = 100, inMemoryTimeout: Duration = 5.minutes) {
+class AggregateActorManager[A <: AggregateType](aggregateType: A, eventHandler: ActorRef)
+  (system: ActorSystem, shardCount: Int = 100, inMemoryTimeout: Duration = 5.minutes) {
   import aggregateType._
 
   private val idExtractor: IdExtractor = {
@@ -40,16 +45,20 @@ class AggregateActorManager[A <: AggregateType](aggregateType: A)
   }
 
   //TODO command deduplication
-  private class AggregateRootActor extends PersistentActor with AtLeastOnceDelivery with ActorLogging {
+  private class AggregateRootActor extends PersistentActor with ActorLogging {
     override def persistenceId = self.path.name
     private val id = {
       parseId(persistenceId)
         .getOrElse(throw new IllegalArgumentException(s"$persistenceId is not a valid id for aggregate $name"))
     }
-    val topics = Set(eventBusConfig.topicFor(aggregateType), eventBusConfig.topicFor(AggregateKey(id)))
 
     private var eventSeq: Long = 0
     private var state = seed(id)
+
+    //ensures the correct ordering of events and retries sending
+    val eventTarget = context actorOf OrderPreservingAck.props(eventHandler) {
+      case msg: OnEvent => msg.ack
+    }
 
     log.debug(s"Starting aggregator actor for $name with id $persistenceId")
     // evict from memory if not used for some time
@@ -70,8 +79,8 @@ class AggregateActorManager[A <: AggregateType](aggregateType: A)
             sender() ! error.fail
         }
 
-      case PubSubAck(id) =>
-        persist(DeliveredToPubSub(id)) { _ => confirmDelivery(id)}
+      case EventAck(id) =>
+        persist(EventDelivered(id)) { _ => confirmDelivery(id)}
 
       case ReceiveTimeout =>
         //ensure that we have no pending messages
@@ -84,25 +93,41 @@ class AggregateActorManager[A <: AggregateType](aggregateType: A)
 
     def receiveRecover = {
       case Event(event) => handleEvent(event)
-      case DeliveredToPubSub(id) => confirmDelivery(id)
-      case RecoveryCompleted => log.info(s"Events successfully applied")
+      case EventDelivered(id) => confirmDelivery(id)
+      case RecoveryCompleted =>
+        log.info(s"Events successfully applied")
+        sendOutstandingEvents()
     }
 
     def handleEvent(event: Event) = {
       state = state.applyEvent.lift(event).
         getOrElse(throw new IllegalStateException(s"Cannot apply event $event to $state. Not handled."))
       //at-least-once trait replays it if needed (no ack received)
-      val eventData = Event.Data(state.id, eventSeq, event)
-      deliver(pubSub.path, id => Producer.Publish(topics, eventData, PubSubAck(id)))
+      deliver(Event.Data(state.id, eventSeq, event))
       eventSeq = eventSeq + 1
     }
-    def publishEvent(event: EventData) = {
 
+    private var deliveryConfirmedUpTo: Long = -1
+    private var toSendOnRecovery = Queue.empty[EventData]
+    def confirmDelivery(eventSeq: Long) = if (eventSeq > deliveryConfirmedUpTo) {
+      assert(eventSeq == deliveryConfirmedUpTo + 1, s"out-of-order ack received")
+      deliveryConfirmedUpTo = eventSeq
+      if (recoveryRunning) toSendOnRecovery = toSendOnRecovery.dequeue._2
+    }
+    def deliver(event: EventData) = {
+      if (recoveryRunning) toSendOnRecovery = toSendOnRecovery enqueue event
+      else eventTarget ! OnEvent(event, EventAck(event.sequence))
+    }
+    def sendOutstandingEvents() = {
+      toSendOnRecovery.foreach { event =>
+        eventTarget ! OnEvent(event, EventAck(event.sequence))
+      }
+      toSendOnRecovery = Queue.empty
     }
   }
 
-  private case class PubSubAck(id: Long)
-  private case class DeliveredToPubSub(id: Long)
+  private case class EventDelivered(id: Long)
+  private case class EventAck(id: Long)
   private case object PassivateAggregateRoot
 
   def execute(cmd: Command)(implicit timeout: Timeout, ec: ExecutionContext): Future[Validation[A#Error, Unit]] = {

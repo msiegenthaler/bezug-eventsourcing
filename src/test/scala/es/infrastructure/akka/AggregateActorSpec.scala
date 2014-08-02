@@ -1,14 +1,16 @@
 package es.infrastructure.akka
 
+import akka.testkit.TestProbe
+
 import scala.concurrent.duration._
 import scala.concurrent.ExecutionContext.Implicits.global
 import akka.util.Timeout
 import es.api.EventData
-import pubsub._
 
 class AggregateActorSpec() extends AbstractSpec() {
+  val eventHandler = TestProbe()
   val manager = {
-    new AggregateActorManager(counter)(system, pubSub.ref, eventBusConfig, 1, 3.seconds)
+    new AggregateActorManager(counter, eventHandler.ref)(system, 1, 3.seconds)
   }
 
   implicit val timeout = Timeout(5.seconds)
@@ -18,15 +20,12 @@ class AggregateActorSpec() extends AbstractSpec() {
     awaitCond(res.isCompleted, timeout.duration)
     assert(res.value.get.isSuccess)
   }
-  def expectNoEvent() = pubSub.expectNoMsg()
-  def expectNoEvents() = pubSub.expectNoMsg(0.seconds)
-  def expectEvent(event: EventData, doAck: Boolean = true) = {
-    val aggregateTopic = eventBusConfig.topicFor(event.aggregateKey)
-    val topics = Set(eventBusConfig.topicFor(event.aggregateType), aggregateTopic)
-    pubSub.expectMsgPF() {
-      case Producer.Publish(`topics`, `event`, ack) =>
-        if (doAck) pubSub reply ack
-    }
+
+  def expectNoEvent() = eventHandler.expectNoMsg()
+  def expectNoEvents() = eventHandler.expectNoMsg(0.seconds)
+  def expectEvent(event: EventData, doAck: Boolean = true) = eventHandler.expectMsgPF() {
+    case OnEvent(`event`, ack) =>
+      if (doAck) eventHandler.reply(ack)
   }
 
   "aggregate actor" must {
@@ -37,6 +36,7 @@ class AggregateActorSpec() extends AbstractSpec() {
 
       expectNoEvent()
     }
+
     "preserve state between invocations" in {
       val init = Initialize()
       executeSuccess(init)
@@ -97,7 +97,7 @@ class AggregateActorSpec() extends AbstractSpec() {
       expectNoEvents()
     }
 
-    "try to redeliver not acked event to pubSub" in {
+    "retry to redeliver not acked event to eventHandler" in {
       val init = Initialize()
       executeSuccess(init)
       executeSuccess(Increment(init.counter))
@@ -110,7 +110,7 @@ class AggregateActorSpec() extends AbstractSpec() {
       expectNoEvents()
     }
 
-    "redeliver not acked event to pubSub on restart" in {
+    "redeliver not acked event to eventHandler on restart" in {
       val init = Initialize()
       executeSuccess(init)
       executeSuccess(Increment(init.counter))
