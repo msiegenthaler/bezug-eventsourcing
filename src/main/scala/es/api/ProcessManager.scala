@@ -53,8 +53,11 @@ trait ProcessManagerType {
 
   /**
    * Responsible for starting an process manager instance.
-   * If it returns an id then the event is forwarded to the respective process manager instance. If the instance
-   * already exists, then it is loaded, else it is created.
+   * Return an Id to start a process manager instance. If the instance with the id is not already started, then it is
+   * created and the event is forwarded to it. It will also be auto-subscribed to all events of the origin aggregate,
+   * starting with the triggering event.
+   * If the instance already exists then nothing will be done, the event will not be forwarded.
+   *
    * The Id can either be derived from an event (i.e. using the aggregates id) or be created (i.e. using UUID.randomUUID).
    * Take care to not instantiate two process managers if the Id is created and not derived.
    */
