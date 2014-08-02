@@ -2,9 +2,8 @@ package es.api
 
 /**
  * Read-only representation of the data from one or more aggregate type.
- * The infrastructure provides capability to restart reading at a specific position in the event stream. The event-ordering
- * is stable (will not change, if the same read model (same name) is read twice). Events are in-order per aggregate, event
- * ordering between aggregate is arbitrary.
+ * The infrastructure provides capability to restart reading at a specific position in the event stream. Events are
+ * in-order per aggregate, event ordering between aggregate is arbitrary.
  */
 trait ReadModel {
   /**
