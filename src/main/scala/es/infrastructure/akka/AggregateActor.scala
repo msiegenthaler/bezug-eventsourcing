@@ -2,17 +2,12 @@ package es.infrastructure.akka
 
 import scala.collection.immutable.Queue
 import scala.concurrent.duration._
-import scala.concurrent.{ExecutionContext, Future}
 import akka.actor._
 import akka.contrib.pattern.ClusterSharding
 import akka.contrib.pattern.ShardRegion._
-import akka.pattern.ask
-import akka.persistence.{AtLeastOnceDelivery, PersistentActor, RecoveryCompleted}
-import akka.util.Timeout
-import scalaz.Scalaz._
+import akka.persistence.{PersistentActor, RecoveryCompleted}
 import scalaz._
 import es.api.{EventData, AggregateType}
-import pubsub._
 
 
 case class OnEvent(event: EventData, ack: Any)
@@ -28,9 +23,17 @@ case class OnEvent(event: EventData, ack: Any)
  *
  * @tparam A the aggregate type
  */
-class AggregateActorManager[A <: AggregateType](aggregateType: A, eventHandler: ActorRef)
+class AggregateActorManager[A <: AggregateType](val aggregateType: A, eventHandler: ActorRef)
   (system: ActorSystem, shardCount: Int = 100, inMemoryTimeout: Duration = 5.minutes) {
   import aggregateType._
+
+  sealed trait CommandResult
+  case class CommandExecuted(command: Command) extends CommandResult
+  case class CommandFailed(command: Command, error: Error) extends CommandResult
+
+  /** Handles Command messages. */
+  def ref: ActorRef = region
+
 
   private val idExtractor: IdExtractor = {
     case Command(id, cmd) => (serializeId(id), cmd)
@@ -68,15 +71,15 @@ class AggregateActorManager[A <: AggregateType](aggregateType: A, eventHandler: 
       case Command(`id`, cmd) =>
         state.execute(cmd) match {
           case Success(events) if events.isEmpty =>
-            sender() ! ().success
+            sender() ! CommandExecuted(cmd)
           case Success(events) =>
             events.dropRight(1).foreach(persist(_)(handleEvent))
             persist(events.last) { event =>
               handleEvent(event)
-              sender() ! ().success
+              sender() ! CommandExecuted(cmd)
             }
           case Failure(Error(error)) =>
-            sender() ! error.fail
+            sender() ! CommandFailed(cmd, error)
         }
 
       case EventAck(id) =>
@@ -129,11 +132,4 @@ class AggregateActorManager[A <: AggregateType](aggregateType: A, eventHandler: 
   private case class EventDelivered(id: Long)
   private case class EventAck(id: Long)
   private case object PassivateAggregateRoot
-
-  def execute(cmd: Command)(implicit timeout: Timeout, ec: ExecutionContext): Future[Validation[A#Error, Unit]] = {
-    region ? cmd map {
-      case Success(_) => ().success
-      case Failure(Error(e)) => e.failure
-    }
-  }
 }

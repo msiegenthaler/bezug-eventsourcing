@@ -16,9 +16,8 @@ class AggregateActorSpec() extends AbstractSpec() {
   implicit val timeout = Timeout(5.seconds)
 
   def executeSuccess(cmd: counter.Command) = {
-    val res = manager.execute(cmd)
-    awaitCond(res.isCompleted, timeout.duration)
-    assert(res.value.get.isSuccess)
+    manager.ref ! cmd
+    expectMsg(manager.CommandExecuted(cmd))
   }
 
   def expectNoEvent() = eventHandler.expectNoMsg()
@@ -58,7 +57,7 @@ class AggregateActorSpec() extends AbstractSpec() {
       expectEvent(counter.Event.Data(init.counter, 0, Incremented(1)))
       expectNoEvents()
 
-      manager.execute(Kill(init.counter))
+      manager.ref ! Kill(init.counter)
 
       executeSuccess(Increment(init.counter))
       expectEvent(counter.Event.Data(init.counter, 1, Incremented(2)))
@@ -75,7 +74,7 @@ class AggregateActorSpec() extends AbstractSpec() {
       expectEvent(counter.Event.Data(init.counter, 1, Incremented(2)))
       expectNoEvents()
 
-      manager.execute(Kill(init.counter))
+      manager.ref ! Kill(init.counter)
 
       executeSuccess(Increment(init.counter))
       expectEvent(counter.Event.Data(init.counter, 2, Incremented(3)))
@@ -117,8 +116,7 @@ class AggregateActorSpec() extends AbstractSpec() {
       expectEvent(counter.Event.Data(init.counter, 0, Incremented(1)), doAck = false)
       expectNoEvents()
 
-      //force restart
-      manager.execute(Kill(init.counter))
+      manager.ref ! Kill(init.counter)
 
       expectEvent(counter.Event.Data(init.counter, 0, Incremented(1)))
       expectNoEvents()
@@ -151,8 +149,7 @@ class AggregateActorSpec() extends AbstractSpec() {
       executeSuccess(Increment(init.counter))
       expectNoEvents()
 
-      //force restart
-      manager.execute(Kill(init.counter))
+      manager.ref ! Kill(init.counter)
 
       expectEvent(counter.Event.Data(init.counter, 0, Incremented(1)))
       expectEvent(counter.Event.Data(init.counter, 1, Incremented(2)))
@@ -169,8 +166,7 @@ class AggregateActorSpec() extends AbstractSpec() {
       executeSuccess(Increment(init.counter))
       expectNoEvents()
 
-      //force restart
-      manager.execute(Kill(init.counter))
+      manager.ref ! Kill(init.counter)
       executeSuccess(Increment(init.counter))
 
       expectEvent(counter.Event.Data(init.counter, 0, Incremented(1)))
@@ -189,8 +185,7 @@ class AggregateActorSpec() extends AbstractSpec() {
       executeSuccess(Increment(init.counter))
       expectNoEvents()
 
-      //force restart
-      manager.execute(Kill(init.counter))
+      manager.ref ! Kill(init.counter)
 
       expectEvent(counter.Event.Data(init.counter, 1, Incremented(2)))
       expectEvent(counter.Event.Data(init.counter, 2, Incremented(3)))
@@ -204,15 +199,13 @@ class AggregateActorSpec() extends AbstractSpec() {
       expectEvent(counter.Event.Data(init.counter, 0, Incremented(1)), doAck = false)
       expectNoEvents()
 
-      //force restart
-      manager.execute(Kill(init.counter))
+      manager.ref ! Kill(init.counter)
       expectEvent(counter.Event.Data(init.counter, 0, Incremented(1)))
       executeSuccess(Increment(init.counter))
       expectEvent(counter.Event.Data(init.counter, 1, Incremented(2)), doAck = false)
       expectNoEvents()
 
-      //force restart
-      manager.execute(Kill(init.counter))
+      manager.ref ! Kill(init.counter)
       expectEvent(counter.Event.Data(init.counter, 1, Incremented(2)))
       expectNoEvents()
 
