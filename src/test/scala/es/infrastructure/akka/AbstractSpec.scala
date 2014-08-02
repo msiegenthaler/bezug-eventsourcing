@@ -19,6 +19,7 @@ abstract class AbstractSpec(_system: ActorSystem) extends TestKit(_system) with 
         |akka.remote.netty.tcp.hostname = "127.0.0.1"
         |akka.remote.netty.tcp.port = 0
         |akka.persistence.journal.plugin = "in-memory-journal"
+        |akka.persistence.at-least-once-delivery.redeliver-interval = "1s"
       """.stripMargin)
     ActorSystem("AggregateActorSpec", config)
   }

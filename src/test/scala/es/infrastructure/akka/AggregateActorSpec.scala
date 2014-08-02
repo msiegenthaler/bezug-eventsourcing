@@ -19,12 +19,13 @@ class AggregateActorSpec() extends AbstractSpec() {
     assert(res.value.get.isSuccess)
   }
   def expectNoEvent() = pubSub.expectNoMsg()
-  def expectEvent(event: EventData) = {
+  def expectNoEvents() = pubSub.expectNoMsg(0.seconds)
+  def expectEvent(event: EventData, doAck: Boolean = true) = {
     val aggregateTopic = eventBusConfig.topicFor(event.aggregateKey)
     val topics = Set(eventBusConfig.topicFor(event.aggregateType), aggregateTopic)
     pubSub.expectMsgPF() {
       case Producer.Publish(`topics`, `event`, ack) =>
-        pubSub reply ack
+        if (doAck) pubSub reply ack
     }
   }
 
@@ -42,9 +43,11 @@ class AggregateActorSpec() extends AbstractSpec() {
 
       executeSuccess(Increment(init.counter))
       expectEvent(counter.Event.Data(init.counter, 0, Incremented(1)))
+      expectNoEvents()
 
       executeSuccess(Increment(init.counter))
       expectEvent(counter.Event.Data(init.counter, 1, Incremented(2)))
+      expectNoEvents()
     }
 
     "preserve state if killed" in {
@@ -53,11 +56,30 @@ class AggregateActorSpec() extends AbstractSpec() {
 
       executeSuccess(Increment(init.counter))
       expectEvent(counter.Event.Data(init.counter, 0, Incremented(1)))
+      expectNoEvents()
 
       manager.execute(Kill(init.counter))
 
       executeSuccess(Increment(init.counter))
       expectEvent(counter.Event.Data(init.counter, 1, Incremented(2)))
+      expectNoEvents()
+    }
+
+    "preserve state if killed after more messages" in {
+      val init = Initialize()
+      executeSuccess(init)
+
+      executeSuccess(Increment(init.counter))
+      executeSuccess(Increment(init.counter))
+      expectEvent(counter.Event.Data(init.counter, 0, Incremented(1)))
+      expectEvent(counter.Event.Data(init.counter, 1, Incremented(2)))
+      expectNoEvents()
+
+      manager.execute(Kill(init.counter))
+
+      executeSuccess(Increment(init.counter))
+      expectEvent(counter.Event.Data(init.counter, 2, Incremented(3)))
+      expectNoEvents()
     }
 
     "preserve state if passivated" in {
@@ -66,11 +88,136 @@ class AggregateActorSpec() extends AbstractSpec() {
 
       executeSuccess(Increment(init.counter))
       expectEvent(counter.Event.Data(init.counter, 0, Incremented(1)))
+      expectNoEvents()
 
       Thread.sleep(5.seconds.toMillis)
 
       executeSuccess(Increment(init.counter))
       expectEvent(counter.Event.Data(init.counter, 1, Incremented(2)))
+      expectNoEvents()
+    }
+
+    "try to redeliver not acked event to pubSub" in {
+      val init = Initialize()
+      executeSuccess(init)
+      executeSuccess(Increment(init.counter))
+      expectEvent(counter.Event.Data(init.counter, 0, Incremented(1)), doAck = false)
+      expectNoEvents()
+
+      Thread.sleep(2.seconds.toMillis)
+
+      expectEvent(counter.Event.Data(init.counter, 0, Incremented(1)))
+      expectNoEvents()
+    }
+
+    "redeliver not acked event to pubSub on restart" in {
+      val init = Initialize()
+      executeSuccess(init)
+      executeSuccess(Increment(init.counter))
+      expectEvent(counter.Event.Data(init.counter, 0, Incremented(1)), doAck = false)
+      expectNoEvents()
+
+      //force restart
+      manager.execute(Kill(init.counter))
+
+      expectEvent(counter.Event.Data(init.counter, 0, Incremented(1)))
+      expectNoEvents()
+    }
+
+    "preserve order in redelivers" in {
+      val init = Initialize()
+      executeSuccess(init)
+      executeSuccess(Increment(init.counter))
+      expectEvent(counter.Event.Data(init.counter, 0, Incremented(1)), doAck = false)
+      expectNoEvents()
+
+      executeSuccess(Increment(init.counter))
+      expectNoEvents()
+
+      Thread.sleep(2.seconds.toMillis)
+
+      expectEvent(counter.Event.Data(init.counter, 0, Incremented(1)))
+      expectEvent(counter.Event.Data(init.counter, 1, Incremented(2)))
+      expectNoEvents()
+    }
+
+    "preserve order in redelivers after restart" in {
+      val init = Initialize()
+      executeSuccess(init)
+      executeSuccess(Increment(init.counter))
+      expectEvent(counter.Event.Data(init.counter, 0, Incremented(1)), doAck = false)
+      expectNoEvents()
+
+      executeSuccess(Increment(init.counter))
+      expectNoEvents()
+
+      //force restart
+      manager.execute(Kill(init.counter))
+
+      expectEvent(counter.Event.Data(init.counter, 0, Incremented(1)))
+      expectEvent(counter.Event.Data(init.counter, 1, Incremented(2)))
+      expectNoEvents()
+    }
+
+    "preserve order in redelivers after restart with new commands" in {
+      val init = Initialize()
+      executeSuccess(init)
+      executeSuccess(Increment(init.counter))
+      expectEvent(counter.Event.Data(init.counter, 0, Incremented(1)), doAck = false)
+      expectNoEvents()
+
+      executeSuccess(Increment(init.counter))
+      expectNoEvents()
+
+      //force restart
+      manager.execute(Kill(init.counter))
+      executeSuccess(Increment(init.counter))
+
+      expectEvent(counter.Event.Data(init.counter, 0, Incremented(1)))
+      expectEvent(counter.Event.Data(init.counter, 1, Incremented(2)))
+      expectEvent(counter.Event.Data(init.counter, 2, Incremented(3)))
+      expectNoEvents()
+    }
+
+    "do not redeliver acked events on restart" in {
+      val init = Initialize()
+      executeSuccess(init)
+      executeSuccess(Increment(init.counter))
+      expectEvent(counter.Event.Data(init.counter, 0, Incremented(1)))
+      executeSuccess(Increment(init.counter))
+      expectEvent(counter.Event.Data(init.counter, 1, Incremented(2)), doAck = false)
+      executeSuccess(Increment(init.counter))
+      expectNoEvents()
+
+      //force restart
+      manager.execute(Kill(init.counter))
+
+      expectEvent(counter.Event.Data(init.counter, 1, Incremented(2)))
+      expectEvent(counter.Event.Data(init.counter, 2, Incremented(3)))
+      expectNoEvents()
+    }
+
+    "do not redeliver later acked events after next restart" in {
+      val init = Initialize()
+      executeSuccess(init)
+      executeSuccess(Increment(init.counter))
+      expectEvent(counter.Event.Data(init.counter, 0, Incremented(1)), doAck = false)
+      expectNoEvents()
+
+      //force restart
+      manager.execute(Kill(init.counter))
+      expectEvent(counter.Event.Data(init.counter, 0, Incremented(1)))
+      executeSuccess(Increment(init.counter))
+      expectEvent(counter.Event.Data(init.counter, 1, Incremented(2)), doAck = false)
+      expectNoEvents()
+
+      //force restart
+      manager.execute(Kill(init.counter))
+      expectEvent(counter.Event.Data(init.counter, 1, Incremented(2)))
+      expectNoEvents()
+
+      executeSuccess(Increment(init.counter))
+      expectEvent(counter.Event.Data(init.counter, 2, Incremented(3)))
     }
   }
 }
