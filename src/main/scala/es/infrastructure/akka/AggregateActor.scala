@@ -20,10 +20,10 @@ case class OnEvent(event: EventData, ack: Any)
  *
  * When an aggregate has not received commands for some time it is removed from memory. At the next command
  * it is again constructed from the persistent events in the event store. This is transparent to the user.
- *
- * @tparam A the aggregate type
  */
-class AggregateActorManager[A <: AggregateType](contextName: String, val aggregateType: A, eventHandler: ActorRef)
+class AggregateActorManager[I, C, E](contextName: String,
+  val aggregateType: AggregateType {type Id = I; type Command = C; type Error = E},
+  eventHandler: ActorRef)
   (system: ActorSystem, shardCount: Int = 100, inMemoryTimeout: Duration = 5.minutes) {
   import aggregateType._
 
