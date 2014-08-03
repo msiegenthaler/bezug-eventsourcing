@@ -42,7 +42,7 @@ class AggregateActorManager[A <: AggregateType](contextName: String, val aggrega
   private val shardResolver: ShardResolver =
     idExtractor.andThen(_._1.hashCode % shardCount).andThen(_.toString)
 
-  private val regionName = s"$name-aggregate"
+  private val regionName = s"$contextName-aggregate-$name"
   private val region = {
     ClusterSharding(system).start(regionName, Some(Props(new AggregateRootActor)), idExtractor, shardResolver)
   }
