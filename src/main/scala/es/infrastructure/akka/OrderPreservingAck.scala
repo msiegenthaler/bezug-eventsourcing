@@ -14,14 +14,14 @@ import scala.concurrent.duration._
  */
 object OrderPreservingAck {
   def props(destination: ActorRef, retryAfter: FiniteDuration = 1.second, retryLimit: Int = 20, maxInFlight: Int = 100)
-    (msgToAck: PartialFunction[Any, Any]) = {
+    (msgToAck: PartialFunction[Any, Any => Boolean]) = {
     Props(new ActorImpl(destination, msgToAck, maxInFlight, retryAfter, retryLimit))
   }
 
   case class TooManyInFlightMessages(count: Long) extends RuntimeException(s"Too many messages are in the buffer: $count.")
   case class RetryLimitExceeded(limit: Long) extends RuntimeException(s"Retry limit of $limit exceeded")
 
-  private class ActorImpl(target: ActorRef, ackFor: PartialFunction[Any, Any], maxInFlight: Int,
+  private class ActorImpl(target: ActorRef, ackFor: PartialFunction[Any, Any => Boolean], maxInFlight: Int,
     retryAfter: FiniteDuration, retryLimit: Int) extends Actor {
     private var expectedAck = Option.empty[InFlightMessage]
     private var queue = Queue.empty[(ActorRef, Any)]
@@ -49,7 +49,7 @@ object OrderPreservingAck {
           }
         }
 
-      case ack if expectedAck.exists(_.expectedAck == ack) =>
+      case ack if expectedAck.exists(_.ackFilter(ack)) =>
         ackToSource(expectedAck.get, ack)
         queue.dequeueOption.foreach {
           case ((s, msg), q2) =>
@@ -73,7 +73,7 @@ object OrderPreservingAck {
     }
   }
   private object Tick
-  private case class InFlightMessage(msg: Any, sender: ActorRef, expectedAck: Any,
+  private case class InFlightMessage(msg: Any, sender: ActorRef, ackFilter: Any => Boolean,
     retries: Int = 0, sent: Long = System.currentTimeMillis) {
     def timeSinceSent = (System.currentTimeMillis - sent).millis
     def retry = copy(retries = retries + 1, sent = System.currentTimeMillis)

@@ -60,7 +60,7 @@ class AggregateActorManager[A <: AggregateType](val aggregateType: A, eventHandl
 
     //ensures the correct ordering of events and retries sending
     val eventTarget = context actorOf OrderPreservingAck.props(eventHandler) {
-      case msg: OnEvent => msg.ack
+      case msg: OnEvent => _ == msg.ack
     }
 
     log.debug(s"Starting aggregator actor for $name with id $persistenceId")

@@ -3,7 +3,6 @@ package es.infrastructure.akka
 import akka.testkit.TestProbe
 
 import scala.concurrent.duration._
-import scala.concurrent.ExecutionContext.Implicits.global
 import akka.util.Timeout
 import es.api.EventData
 
