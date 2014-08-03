@@ -9,7 +9,7 @@ import es.api.EventData
 class AggregateActorSpec() extends AbstractSpec() {
   val eventHandler = TestProbe()
   val manager = {
-    new AggregateActorManager(counter, eventHandler.ref)(system, 1, 3.seconds)
+    new AggregateActorManager("AggregateActorSpec", counter, eventHandler.ref)(system, 1, 3.seconds)
   }
 
   implicit val timeout = Timeout(5.seconds)

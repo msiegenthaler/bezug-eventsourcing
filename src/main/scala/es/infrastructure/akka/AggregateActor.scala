@@ -23,7 +23,7 @@ case class OnEvent(event: EventData, ack: Any)
  *
  * @tparam A the aggregate type
  */
-class AggregateActorManager[A <: AggregateType](val aggregateType: A, eventHandler: ActorRef)
+class AggregateActorManager[A <: AggregateType](contextName: String, val aggregateType: A, eventHandler: ActorRef)
   (system: ActorSystem, shardCount: Int = 100, inMemoryTimeout: Duration = 5.minutes) {
   import aggregateType._
 
@@ -49,9 +49,9 @@ class AggregateActorManager[A <: AggregateType](val aggregateType: A, eventHandl
 
   //TODO command deduplication
   private class AggregateRootActor extends PersistentActor with ActorLogging {
-    override def persistenceId = self.path.name
+    override val persistenceId = s"$contextName/Aggregate/$name/${self.path.name}"
     private val id = {
-      parseId(persistenceId)
+      parseId(self.path.name)
         .getOrElse(throw new IllegalArgumentException(s"$persistenceId is not a valid id for aggregate $name"))
     }
 
