@@ -1,9 +1,9 @@
 package es.infrastructure.akka
 
-import akka.testkit.TestProbe
-
 import scala.concurrent.duration._
+import akka.testkit.TestProbe
 import akka.util.Timeout
+import es.infrastructure.akka.counter.Kill
 import es.api.EventData
 
 class AggregateActorSpec() extends AbstractSpec() {
@@ -15,8 +15,8 @@ class AggregateActorSpec() extends AbstractSpec() {
   implicit val timeout = Timeout(5.seconds)
 
   def executeSuccess(cmd: counter.Command) = {
-    manager.ref ! cmd
-    expectMsg(manager.CommandExecuted(cmd))
+    manager.ref ! Execute(cmd, "ok", (e: counter.Error) => s"fail: $e")
+    expectMsg("ok")
   }
 
   def expectNoEvent() = eventHandler.expectNoMsg()
@@ -25,6 +25,8 @@ class AggregateActorSpec() extends AbstractSpec() {
     case OnEvent(`event`, ack) =>
       if (doAck) eventHandler.reply(ack)
   }
+
+  def killManager(id: counter.Id) = manager.ref ! Execute(Kill(id), (), (_: counter.Error) => ())
 
   "aggregate actor" must {
     import counter._
@@ -73,7 +75,7 @@ class AggregateActorSpec() extends AbstractSpec() {
       expectEvent(counter.Event.Data(init.counter, 1, Incremented(2)))
       expectNoEvents()
 
-      manager.ref ! Kill(init.counter)
+      killManager(init.counter)
 
       executeSuccess(Increment(init.counter))
       expectEvent(counter.Event.Data(init.counter, 2, Incremented(3)))
@@ -115,7 +117,7 @@ class AggregateActorSpec() extends AbstractSpec() {
       expectEvent(counter.Event.Data(init.counter, 0, Incremented(1)), doAck = false)
       expectNoEvents()
 
-      manager.ref ! Kill(init.counter)
+      killManager(init.counter)
 
       expectEvent(counter.Event.Data(init.counter, 0, Incremented(1)))
       expectNoEvents()
@@ -148,7 +150,7 @@ class AggregateActorSpec() extends AbstractSpec() {
       executeSuccess(Increment(init.counter))
       expectNoEvents()
 
-      manager.ref ! Kill(init.counter)
+      killManager(init.counter)
 
       expectEvent(counter.Event.Data(init.counter, 0, Incremented(1)))
       expectEvent(counter.Event.Data(init.counter, 1, Incremented(2)))
@@ -165,7 +167,7 @@ class AggregateActorSpec() extends AbstractSpec() {
       executeSuccess(Increment(init.counter))
       expectNoEvents()
 
-      manager.ref ! Kill(init.counter)
+      killManager(init.counter)
       executeSuccess(Increment(init.counter))
 
       expectEvent(counter.Event.Data(init.counter, 0, Incremented(1)))
@@ -184,7 +186,7 @@ class AggregateActorSpec() extends AbstractSpec() {
       executeSuccess(Increment(init.counter))
       expectNoEvents()
 
-      manager.ref ! Kill(init.counter)
+      killManager(init.counter)
 
       expectEvent(counter.Event.Data(init.counter, 1, Incremented(2)))
       expectEvent(counter.Event.Data(init.counter, 2, Incremented(3)))
@@ -198,13 +200,13 @@ class AggregateActorSpec() extends AbstractSpec() {
       expectEvent(counter.Event.Data(init.counter, 0, Incremented(1)), doAck = false)
       expectNoEvents()
 
-      manager.ref ! Kill(init.counter)
+      killManager(init.counter)
       expectEvent(counter.Event.Data(init.counter, 0, Incremented(1)))
       executeSuccess(Increment(init.counter))
       expectEvent(counter.Event.Data(init.counter, 1, Incremented(2)), doAck = false)
       expectNoEvents()
 
-      manager.ref ! Kill(init.counter)
+      killManager(init.counter)
       expectEvent(counter.Event.Data(init.counter, 1, Incremented(2)))
       expectNoEvents()
 

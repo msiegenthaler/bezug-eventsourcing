@@ -27,17 +27,16 @@ class AggregateActorManager[I, C, E](contextName: String,
   (system: ActorSystem, shardCount: Int = 100, inMemoryTimeout: Duration = 5.minutes) {
   import aggregateType._
 
-  sealed trait CommandResult
-  case class CommandExecuted(command: Command) extends CommandResult
-  case class CommandFailed(command: Command, error: Error) extends CommandResult
+  /** Execute the command and the reply with onSuccess or onFailed to the sender of the message. */
+  type Execute = es.infrastructure.akka.Execute[Command, Error]
 
   /** Handles Command messages. */
   def ref: ActorRef = region
 
 
   private val idExtractor: IdExtractor = {
-    case Command(id, cmd) => (serializeId(id), cmd)
-    case any => ("", any)
+    case msg@Execute(Command(id, cmd), suc, fail) => (serializeId(id), msg)
+    case other => ("", other)
   }
   private val shardResolver: ShardResolver =
     idExtractor.andThen(_._1.hashCode % shardCount).andThen(_.toString)
@@ -68,18 +67,18 @@ class AggregateActorManager[I, C, E](contextName: String,
     context.setReceiveTimeout(inMemoryTimeout)
 
     def receiveCommand = {
-      case Command(`id`, cmd) =>
+      case Execute(Command(`id`, cmd), success, fail) =>
         state.execute(cmd) match {
           case Success(events) if events.isEmpty =>
-            sender() ! CommandExecuted(cmd)
+            sender() ! success
           case Success(events) =>
             events.dropRight(1).foreach(persist(_)(handleEvent))
             persist(events.last) { event =>
               handleEvent(event)
-              sender() ! CommandExecuted(cmd)
+              sender() ! success
             }
           case Failure(Error(error)) =>
-            sender() ! CommandFailed(cmd, error)
+            sender() ! fail(error.asInstanceOf)
         }
 
       case EventAck(id) =>
