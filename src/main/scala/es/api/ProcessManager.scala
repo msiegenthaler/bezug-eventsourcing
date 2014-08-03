@@ -19,13 +19,8 @@ object ProcessManager {
   case object Completed
 
   sealed trait SubscriptionAction
-
-  sealed trait Subscribe extends SubscriptionAction
-  case class SubscribeToAggregateType(aggregateType: AggregateType) extends Subscribe
-  case class SubscribeToAggregate(id: AggregateKey) extends Subscribe
-  sealed trait Unsubscribe extends SubscriptionAction
-  case class UnsubscribeFromAggregateType(aggregateType: AggregateType) extends Unsubscribe
-  case class UnsubscribeFromAggregate(id: AggregateKey) extends Unsubscribe
+  case class Subscribe(id: AggregateKey) extends SubscriptionAction
+  case class Unsubscribe(id: AggregateKey) extends SubscriptionAction
 }
 
 trait ProcessManagerType {
@@ -49,7 +44,7 @@ trait ProcessManagerType {
 
 
   /** Subscribe to events needed by #initiate. */
-  def triggeredBy: Traversable[Subscribe]
+  def triggeredBy: Set[AggregateType]
 
   /**
    * Responsible for starting an process manager instance.

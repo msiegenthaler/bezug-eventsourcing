@@ -2,8 +2,7 @@ package es.infrastructure.akka
 
 import java.util.UUID
 
-import es.api.ProcessManager.SubscribeToAggregateType
-import es.api.{EventData, ProcessManagerType}
+import es.api.ProcessManagerType
 import es.infrastructure.akka.counter.Incremented
 
 import scala.util.Try
@@ -21,7 +20,7 @@ class CounterProcessManager extends ProcessManagerType {
     private def addRound = copy(round = round + 1)
   }
 
-  def triggeredBy = SubscribeToAggregateType(counter) :: Nil
+  def triggeredBy = Set(counter)
   def initiate = {
     //one process manager per counter
     case counter.EventData(id, _, _) => id

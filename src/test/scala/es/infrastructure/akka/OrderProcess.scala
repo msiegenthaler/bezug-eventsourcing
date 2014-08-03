@@ -2,7 +2,7 @@ package es.infrastructure.akka
 
 import java.util.UUID
 
-import es.api.ProcessManager.{SubscribeToAggregate, SubscribeToAggregateType}
+import es.api.ProcessManager.Subscribe
 import es.api.{EventData, ProcessManagerType}
 
 import scala.util.Try
@@ -16,7 +16,7 @@ class OrderProcess extends ProcessManagerType {
 
   type Command = Any
 
-  def triggeredBy = Set(SubscribeToAggregateType(Order))
+  def triggeredBy = Set(Order)
   def initiate = {
     case Order.EventData(id, _, _: Order.OrderPlaced) => id
   }
@@ -27,7 +27,7 @@ class OrderProcess extends ProcessManagerType {
         val paymentRequest = Payment.RequestPayment(total, billRef)
         Continue(copy(placed = true, payment = Some(paymentRequest.payment))) +
           paymentRequest +
-          SubscribeToAggregate(Payment.AggregateKey(paymentRequest.payment))
+          Subscribe(Payment.AggregateKey(paymentRequest.payment))
 
       case Payment.Event(Payment.PaymentConfirmed) =>
         Completed() + Order.CompleteOrder(order)
