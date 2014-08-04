@@ -1,6 +1,6 @@
 package es.infrastructure.akka
 
-import es.support.{Guid, GuidAggregateType}
+import es.support.GuidAggregateType
 
 object counter extends GuidAggregateType {
   def name = "Counter"
@@ -9,7 +9,7 @@ object counter extends GuidAggregateType {
     val counter: Id
   }
   case class Initialize() extends Command {
-    val counter = Guid.generate
+    val counter = generateId
   }
   case class Increment(counter: Id) extends Command
   case class Set(counter: Id, value: Int) extends Command

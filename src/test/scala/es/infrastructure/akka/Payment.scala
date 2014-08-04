@@ -1,6 +1,6 @@
 package es.infrastructure.akka
 
-import es.support.{Guid, GuidAggregateType}
+import es.support.GuidAggregateType
 
 object Payment extends GuidAggregateType {
   def name = "Payment"
@@ -13,7 +13,7 @@ object Payment extends GuidAggregateType {
   sealed trait Command {
     def payment: Id
   }
-  case class RequestPayment(amount: Money, reference: String, payment: Id = Guid.generate) extends Command
+  case class RequestPayment(amount: Money, reference: String, payment: Id = generateId) extends Command
   case class ConfirmPayment(payment: Id, amount: Money) extends Command
   case class DenyPayment(payment: Id, reason: String) extends Command
   def aggregateIdForCommand(command: Command) = Some(command.payment)

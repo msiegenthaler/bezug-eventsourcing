@@ -1,6 +1,6 @@
 package es.infrastructure.akka
 
-import es.support.{Guid, GuidAggregateType}
+import es.support.GuidAggregateType
 
 /** An purchase order (used for tests). */
 object Order extends GuidAggregateType {
@@ -15,7 +15,7 @@ object Order extends GuidAggregateType {
   sealed trait Command {
     def order: Id
   }
-  case class StartOrder(order: Id = Guid.generate) extends Command
+  case class StartOrder(order: Id = generateId) extends Command
   case class AddItem(order: Id, item: String, cost: Money) extends Command
   case class PlaceOrder(order: Id) extends Command
   case class CancelOrder(order: Id) extends Command

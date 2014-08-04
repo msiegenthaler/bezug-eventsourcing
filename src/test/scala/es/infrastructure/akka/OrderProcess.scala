@@ -11,7 +11,7 @@ class OrderProcess extends GuidProcessManagerType {
 
   def triggeredBy = Set(Order)
   def initiate = {
-    case Order.EventData(id, _, _: Order.OrderPlaced) => id
+    case Order.EventData(id, _, _: Order.OrderPlaced) => Id(id.guid)
   }
 
   case class Manager(id: Id, order: Order.Id, payment: Option[Payment.Id], placed: Boolean) extends BaseManager {
@@ -28,5 +28,5 @@ class OrderProcess extends GuidProcessManagerType {
         Completed() + Order.CancelOrder(order)
     }
   }
-  def seed(id: Id) = Manager(id, id, None, false)
+  def seed(id: Id) = Manager(id, Order.Id(id.guid), None, false)
 }

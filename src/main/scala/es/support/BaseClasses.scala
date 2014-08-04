@@ -4,16 +4,18 @@ import es.api.{ProcessManagerType, AggregateType}
 
 /** Aggregate that uses a Guid as its id. */
 trait GuidAggregateType extends AggregateType {
-  type Id = Guid
+  case class Id(guid: Guid)
 
-  override def parseId(serialized: String) = Guid.parseFromString(serialized)
-  override def serializeId(id: Id) = id.serializeToString
+  protected def generateId = Id(Guid.generate)
+  override def parseId(serialized: String) = Guid.parseFromString(serialized).map(Id(_))
+  override def serializeId(id: Id) = id.guid.serializeToString
 }
 
 /** ProcessManger that uses a Guid as its id. */
 trait GuidProcessManagerType extends ProcessManagerType {
-  type Id = Guid
+  case class Id(guid: Guid)
 
-  override def parseId(serialized: String) = Guid.parseFromString(serialized)
-  override def serializeId(id: Id) = id.serializeToString
+  protected def generateId = Id(Guid.generate)
+  override def parseId(serialized: String) = Guid.parseFromString(serialized).map(Id(_))
+  override def serializeId(id: Id) = id.guid.serializeToString
 }

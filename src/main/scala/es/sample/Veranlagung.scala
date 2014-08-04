@@ -10,7 +10,7 @@ object veranlagung extends GuidAggregateType {
     val veranlagung: Id
   }
   case class Request() extends Command {
-    val veranlagung = Guid.generate
+    val veranlagung = generateId
   }
   case class FillOut(veranlagung: Id, einkommen: Long) extends Command
   case class SubmitToAuthority(veranlagung: Id) extends Command

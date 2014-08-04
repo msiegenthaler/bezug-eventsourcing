@@ -18,7 +18,7 @@ class CounterProcessManager extends GuidProcessManagerType {
   def triggeredBy = Set(counter)
   def initiate = {
     //one process manager per counter
-    case counter.EventData(id, _, _) => id
+    case counter.EventData(id, _, _) => Id(id.guid)
   }
 
   def seed(id: Id) = Manager(id, 1)
