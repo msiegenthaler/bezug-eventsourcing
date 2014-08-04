@@ -1,5 +1,6 @@
 package es.infrastructure.akka
 
+import es.infrastructure.akka.AggregateActor.OnEvent
 import scala.concurrent.duration._
 import akka.testkit.TestProbe
 import akka.util.Timeout
