@@ -1,21 +1,16 @@
 package es.sample
 
-import java.util.UUID
+import es.support.{Guid, GuidAggregateType}
 
-import es.api.AggregateType
-
-import scala.util.Try
-
-object veranlagung extends AggregateType {
+object veranlagung extends GuidAggregateType {
   def name = "Veranlagung"
-  type Id = UUID
 
   //Commands
   sealed trait Command {
     val veranlagung: Id
   }
   case class Request() extends Command {
-    val veranlagung = UUID.randomUUID
+    val veranlagung = Guid.generate
   }
   case class FillOut(veranlagung: Id, einkommen: Long) extends Command
   case class SubmitToAuthority(veranlagung: Id) extends Command
@@ -51,8 +46,6 @@ object veranlagung extends AggregateType {
   }
 
   def seed(id: Id) = Veranlagung(id, None, false)
-  def parseId(id: String) = Try(UUID.fromString(id)).toOption
-  def serializeId(id: Id) = id.toString
   def aggregateIdForCommand(command: Command) = Some(command.veranlagung)
   protected def types = typeInfo
 }

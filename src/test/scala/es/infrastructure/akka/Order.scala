@@ -1,16 +1,10 @@
 package es.infrastructure.akka
 
-import java.util.UUID
-import scala.util.Try
-import es.api.AggregateType
+import es.support.{Guid, GuidAggregateType}
 
 /** An purchase order (used for tests). */
-object Order extends AggregateType {
+object Order extends GuidAggregateType {
   def name = "Order"
-
-  type Id = UUID
-  def serializeId(id: Id) = id.toString
-  def parseId(serialized: String) = Try(UUID.fromString(serialized)).toOption
 
   sealed trait Event
   case class ItemAdded(item: String, amount: Money) extends Event
@@ -21,9 +15,9 @@ object Order extends AggregateType {
   sealed trait Command {
     def order: Id
   }
-  case class StartOrder(order: Id = UUID.randomUUID) extends Command
+  case class StartOrder(order: Id = Guid.generate) extends Command
   case class AddItem(order: Id, item: String, cost: Money) extends Command
-  case class PlaceOrder(order: Id = UUID.randomUUID) extends Command
+  case class PlaceOrder(order: Id) extends Command
   case class CancelOrder(order: Id) extends Command
   case class CompleteOrder(order: Id) extends Command
   def aggregateIdForCommand(command: Command) = Some(command.order)

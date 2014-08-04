@@ -1,16 +1,9 @@
 package es.infrastructure.akka
 
-import java.util.UUID
-import scala.util.Try
-import es.api.AggregateType
+import es.support.{Guid, GuidAggregateType}
 
-
-object Payment extends AggregateType {
+object Payment extends GuidAggregateType {
   def name = "Payment"
-
-  type Id = UUID
-  def serializeId(id: Id) = id.toString
-  def parseId(serialized: String) = Try(UUID.fromString(serialized)).toOption
 
   sealed trait Event
   case class PaymentRequested(amount: Money, reference: String) extends Event
@@ -20,7 +13,7 @@ object Payment extends AggregateType {
   sealed trait Command {
     def payment: Id
   }
-  case class RequestPayment(amount: Money, reference: String, payment: Id = UUID.randomUUID) extends Command
+  case class RequestPayment(amount: Money, reference: String, payment: Id = Guid.generate) extends Command
   case class ConfirmPayment(payment: Id, amount: Money) extends Command
   case class DenyPayment(payment: Id, reason: String) extends Command
   def aggregateIdForCommand(command: Command) = Some(command.payment)

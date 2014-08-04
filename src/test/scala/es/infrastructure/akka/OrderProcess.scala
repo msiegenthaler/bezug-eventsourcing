@@ -1,18 +1,11 @@
 package es.infrastructure.akka
 
-import java.util.UUID
 
 import es.api.ProcessManager.Subscribe
-import es.api.{EventData, ProcessManagerType}
+import es.support.GuidProcessManagerType
 
-import scala.util.Try
-
-class OrderProcess extends ProcessManagerType {
+class OrderProcess extends GuidProcessManagerType {
   def name = "OrderProcess"
-
-  type Id = UUID
-  def serializeId(id: Id) = id.toString
-  def parseId(serialized: String) = Try(UUID.fromString(serialized)).toOption
 
   type Command = Any
 

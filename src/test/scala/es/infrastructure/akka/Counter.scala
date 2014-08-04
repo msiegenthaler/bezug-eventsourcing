@@ -1,19 +1,15 @@
 package es.infrastructure.akka
 
-import java.util.UUID
-import es.api.AggregateType
+import es.support.{Guid, GuidAggregateType}
 
-import scala.util.Try
-
-object counter extends AggregateType {
+object counter extends GuidAggregateType {
   def name = "Counter"
-  type Id = UUID
 
   sealed trait Command {
     val counter: Id
   }
   case class Initialize() extends Command {
-    val counter = UUID.randomUUID
+    val counter = Guid.generate
   }
   case class Increment(counter: Id) extends Command
   case class Set(counter: Id, value: Int) extends Command
@@ -42,8 +38,6 @@ object counter extends AggregateType {
   }
 
   def seed(id: Id) = Counter(id, 0)
-  def serializeId(id: Id) = id.toString
-  def parseId(serialized: String) = Try(UUID.fromString(serialized)).toOption
   def aggregateIdForCommand(command: Command) = Some(command.counter)
   protected val types = typeInfo[Command, Event, Error]
 }
