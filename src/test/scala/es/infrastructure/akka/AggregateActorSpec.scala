@@ -16,7 +16,7 @@ class AggregateActorSpec() extends AbstractSpec() {
 
   def executeSuccess(cmd: counter.Command) = {
     manager.ref ! Execute(cmd, "ok", (e: counter.Error) => s"fail: $e")
-    expectMsg("ok")
+    expectMsg(5.seconds, "ok")
   }
 
   def expectNoEvent() = eventHandler.expectNoMsg()
