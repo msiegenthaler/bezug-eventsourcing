@@ -40,6 +40,7 @@ object Order extends GuidAggregateType {
       case _ => OrderIsOpen
     }
     def applyEvent = {
+      case ItemAdded(item, amount) => copy(items = items :+ (item , amount))
       case OrderPlaced(items, amount, ref) => PlacedOrder(id, items.map(_._1), amount, ref)
       case OrderCanceled => FinishedOrder(id, OrderWasCancelled)
     }

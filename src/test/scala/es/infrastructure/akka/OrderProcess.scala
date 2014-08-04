@@ -1,7 +1,7 @@
 package es.infrastructure.akka
 
 
-import es.api.ProcessManager.Subscribe
+import es.api.ProcessManager.{Unsubscribe, Subscribe}
 import es.support.GuidProcessManagerType
 
 class OrderProcess extends GuidProcessManagerType {
@@ -20,7 +20,8 @@ class OrderProcess extends GuidProcessManagerType {
         val paymentRequest = Payment.RequestPayment(total, billRef)
         Continue(copy(placed = true, payment = Some(paymentRequest.payment))) +
           paymentRequest +
-          Subscribe(Payment.AggregateKey(paymentRequest.payment))
+          Subscribe(Payment.AggregateKey(paymentRequest.payment)) +
+          Unsubscribe(Order.AggregateKey(order))
 
       case Payment.Event(Payment.PaymentConfirmed) =>
         Completed() + Order.CompleteOrder(order)
