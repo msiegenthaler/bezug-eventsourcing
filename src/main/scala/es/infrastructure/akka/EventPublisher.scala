@@ -87,44 +87,4 @@ object EventPublisher {
     }
   }
   private case class AggregateEventAcknowledged(subscriptionId: SubscriptionId, seq: Long)
-
-
-  /**
-   * Handles a single subscription for aggregate events. Loads old events from the journal if needed.
-   *
-   * @param start first event (sequence number) to send
-   * @param positionWhenStarted the number of the next event that will be emitted (this seq and onwards will be
-   *                            sent to this actor as EventData messages.
-   */
-  private class SubscriptionHandler(id: SubscriptionId, aggregateId: String, start: Long, positionWhenStarted: Long)
-    extends Actor with Stash with ActorLogging {
-    private var pos = start
-
-    if (start < positionWhenStarted) {
-      context actorOf AggregateJournalReplay.props(aggregateId, start, positionWhenStarted - 1)
-    }
-
-    def receive = {
-      //from journal
-      case EventEmitted(seq, event) if (seq == pos) =>
-        sendEvent(seq, event)
-      //new event
-      case EventData(_, _, seq, event) if (seq == pos) =>
-        sendEvent(seq, event)
-
-      case AggregateEventAcknowledged(`id`, seq) =>
-
-
-      case outOfSequence: EventEmitted[_] => stash
-      case outOfSequence: EventData => stash
-    }
-
-    def sendEvent(seq: Long, event: Any) = {
-      pos = pos + 1
-      ??? //TODO send
-      unstashAll()
-    }
-  }
-
-
 }
