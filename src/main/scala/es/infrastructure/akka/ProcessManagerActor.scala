@@ -17,7 +17,7 @@ import es.api.{EventData, ProcessManagerType}
  * not work anymore after the change. Terminated and new instances are not affected.
  */
 class ProcessManagerActor[C, E](contextName: String, val processManagerType: ProcessManagerType {type Command <: C; type Error <: E},
-  commandBus: ActorRef)(system: ActorSystem, managerCount: Int = 1000) {
+  commandDistributor: ActorRef)(system: ActorSystem, managerCount: Int = 1000) {
   import processManagerType._
 
   /** Message that starts a process if it is not already started. */
@@ -40,7 +40,7 @@ class ProcessManagerActor[C, E](contextName: String, val processManagerType: Pro
     ClusterSharding(system).start(regionName, Some(Props(new ManagerActor)), idExtractor, shardResolver)
   }
 
-  private val instance = new ProcessManagerInstance[Id, C, E](contextName, processManagerType, commandBus)
+  private val instance = new ProcessManagerInstance[Id, C, E](contextName, processManagerType, commandDistributor)
 
 
   private class ManagerActor extends PersistentActor {
