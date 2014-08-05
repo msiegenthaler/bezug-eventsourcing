@@ -60,6 +60,15 @@ object SubscriptionManager {
       goto(Subscribing)
     }
 
+    override def postStop() = {
+      pubSub ! Unsubscribe(id)
+      super.postStop()
+    }
+    override def preRestart(reason: Throwable, messages: Option[Any]) = {
+      pubSub ! Unsubscribe(id)
+      super.preRestart(reason, messages)
+    }
+
     initialize()
   }
 }
