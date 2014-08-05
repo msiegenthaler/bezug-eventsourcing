@@ -1,6 +1,7 @@
 package es.infrastructure.akka
 
 import akka.actor.{Props, Actor}
+import es.infrastructure.akka.EventBus.{UnsubscribeFromAggregate, SubscribeToAggregate}
 
 /** Distribute commands to aggregate actors based on the types. */
 object CommandDistributor {
@@ -23,6 +24,16 @@ object CommandDistributor {
           }
         } getOrElse {
           sender() ! unknown
+        }
+
+      case msg: SubscribeToAggregate =>
+        aggregates.find(_.aggregateType == msg.aggregate.aggregateType).foreach { a =>
+          a.ref forward msg
+        }
+
+      case msg: UnsubscribeFromAggregate =>
+        aggregates.find(_.aggregateType == msg.aggregate.aggregateType).foreach { a =>
+          a.ref forward msg
         }
     }
   }
