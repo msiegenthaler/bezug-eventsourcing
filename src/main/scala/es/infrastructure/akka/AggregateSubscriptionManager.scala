@@ -24,11 +24,11 @@ import es.infrastructure.akka.EventBus.{UnsubscribeFromAggregate, SubscribeToAgg
 object AggregateSubscriptionManager {
   case class Start(at: Long)
 
-  def props(parentId: String, journalReplay: (Long, Long) => Props): Props = Props(new Publisher(parentId, journalReplay))
+  def props(namePrefix: String, journalReplay: (Long, Long) => Props): Props = Props(new Publisher(namePrefix, journalReplay))
 
   private type SubscriptionId = String
-  private class Publisher(aggregateId: String, journalReplay: (Long, Long) => Props) extends PersistentActor with ActorLogging {
-    def persistenceId = s"$aggregateId\EventPublisher"
+  private class Publisher(namePrefix: String, journalReplay: (Long, Long) => Props) extends PersistentActor with ActorLogging {
+    def persistenceId = s"$namePrefix\EventPublisher"
 
     //TODO use snapshots to improve performance
     //TODO think through supervisor role (probably individual restart)

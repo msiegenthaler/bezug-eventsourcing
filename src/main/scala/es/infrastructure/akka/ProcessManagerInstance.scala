@@ -22,7 +22,7 @@ class ProcessManagerInstance[I, C, E](contextName: String,
 
 
   private class Process(id: Id) extends PersistentActor with ActorLogging {
-    def persistenceId = s"$contextName/ProcessManager/$name/$id"
+    def persistenceId = s"$contextName/ProcessManager/$name/Instance/$id"
     val commandTarget = context actorOf OrderPreservingAck.props(commandBus) {
       case Execute(_, ok, fail) => msg => msg == ok || msg == fail
     }

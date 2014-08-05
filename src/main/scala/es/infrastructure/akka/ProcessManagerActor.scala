@@ -35,7 +35,7 @@ class ProcessManagerActor[C, E](contextName: String, val processManagerType: Pro
     case any => ("", any)
   }
   private val shardResolver: ShardResolver = idExtractor.andThen(_._1)
-  private val regionName = s"$contextName-processManager-$name"
+  private val regionName = s"$contextName/ProcessManager/$name/Manager"
   private val region = {
     ClusterSharding(system).start(regionName, Some(Props(new ManagerActor)), idExtractor, shardResolver)
   }
