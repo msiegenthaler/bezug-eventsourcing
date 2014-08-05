@@ -30,10 +30,11 @@ object AggregateSubscription {
     private var buffer = Queue.empty[EventData]
 
     //TODO use snapshots
+    //TODO add overflow protection using aggregate journal backpressure and discarding of live events (reread from journal)
 
     def receiveCommand = {
       case Start(liveFrom) =>
-        if (liveFrom > start) {
+        if (liveFrom > pos) {
           //load "missing" events from journal
           context actorOf journalReplay(start, liveFrom)
         }

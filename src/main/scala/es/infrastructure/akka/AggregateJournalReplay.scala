@@ -10,6 +10,8 @@ import es.support.Guid
 class AggregateJournalReplay[A <: AggregateType](val aggregateType: A) {
   import aggregateType._
 
+  //TODO add some throtteling (backpressure)
+
   /**
    * @param from inclusive
    * @param until inclusive
