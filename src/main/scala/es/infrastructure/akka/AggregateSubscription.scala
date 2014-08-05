@@ -1,30 +1,31 @@
 package es.infrastructure.akka
 
-import akka.actor.{ActorRef, Props}
+import scala.collection.immutable.Queue
+import akka.actor.{ActorSelection, Props}
 import akka.persistence.{RecoveryCompleted, PersistentActor}
-import es.api.{AggregateType, EventData}
+import es.api.EventData
 import es.infrastructure.akka.AggregateActor.{OnEvent, EventEmitted}
 import es.infrastructure.akka.EventBus.AggregateEvent
-
-import scala.collection.immutable.Queue
 
 /**
  * Handles a persistent single subscription for events of a single aggregate.
  * Needs to be started with the Start() message.
  * Loads old events from the journal if needed and afterwards follows a life-event stream of OnEvent messages (must be
  * sent to this actor by the creator).
- * The events are sent to the target as EventBus.AggregateEvent, acks are noted.
+ * The events are sent to the target as EventBus.AggregateEvent, acks are noted persistently.
  */
 object AggregateSubscription {
   /** Send to start the subscription. */
   case class Start(lifeEventsFrom: Long)
+  /** Close the subscription. Events pending ack will be discarded. */
+  case class Close(whenDone: Any)
 
-  def props(id: String, target: ActorRef, journalReplay: (Long, Long) => Props, startAtEventSequence: Long = 0): Props = {
+  def props(id: String, target: ActorSelection, journalReplay: (Long, Long) => Props, startAtEventSequence: Long = 0): Props = {
     Props(new SubscriptionActor(id, journalReplay, target, startAtEventSequence))
   }
 
   private class SubscriptionActor(id: String, journalReplay: (Long, Long) => Props,
-    target: ActorRef, start: Long, maxBufferSize: Long = 1000) extends PersistentActor {
+    target: ActorSelection, start: Long, maxBufferSize: Long = 1000) extends PersistentActor {
     def persistenceId = s"AggregateSubscription/$id"
     private var pos = start
     private var buffer = Queue.empty[EventData]
@@ -62,6 +63,22 @@ object AggregateSubscription {
               buffer = b2
           }
         }
+
+      case Close(d) =>
+        persist(Closed(d)) {
+          case Closed(whenDone) =>
+            context.parent ! whenDone
+            context stop self
+        }
+    }
+
+    def receiveRecover = {
+      case EventAcknowledged(seq) => pos = seq max pos
+      case Closed(whenDone) =>
+        context.parent ! whenDone
+        context stop self
+      case RecoveryCompleted =>
+        () //wait for Start message
     }
 
     def handleEvent(event: EventData) = {
@@ -75,11 +92,8 @@ object AggregateSubscription {
       }
     }
 
-    def receiveRecover = {
-      case EventAcknowledged(seq) => pos = seq max pos
-      case RecoveryCompleted => () //wait for Start message
-    }
   }
   private case class EventAcknowledged(sequence: Long)
+  private case class Closed(whenDone: Any)
   private case class AckEvent(sequence: Long)
 }
