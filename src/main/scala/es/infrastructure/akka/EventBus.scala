@@ -14,11 +14,11 @@ object EventBus {
    * The subscription will start at the event with the sequenceId `startEventSeq`.
    */
   case class SubscribeToAggregate(subscriptionId: String, aggregate: AggregateKey,
-    subscriber: ActorPath, startEventSeq: Long = 0) extends EventBusCommand
+    subscriber: ActorPath, startEventSeq: Long, ack: Any) extends EventBusCommand
 
   /** Event delivered a part of the persistent subscription. Reply with `ack`. */
   case class AggregateEvent(subscriptionId: String, event: EventData, ack: Any) extends EventBusEvent
 
   /** Remove the (persistent) subscription. */
-  case class UnsubscribeFromAggregate(subscriptionId: String) extends EventBusCommand
+  case class UnsubscribeFromAggregate(subscriptionId: String, ack: Any) extends EventBusCommand
 }
