@@ -1,10 +1,8 @@
 package es.api
 
+import scala.language.implicitConversions
 import shapeless._
 import shapeless.syntax.typeable._
-
-import scala.concurrent.Future
-import scala.language.implicitConversions
 import scalaz.Scalaz._
 import scalaz._
 
