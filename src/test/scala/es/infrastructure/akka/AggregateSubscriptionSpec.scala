@@ -85,7 +85,7 @@ class AggregateSubscriptionSpec extends AbstractSpec {
       probe.expectEvent(event2)
     }
 
-    "must not replay ack'ed messages" in {
+    "not replay ack'ed messages" in {
       val probe = TestProbe()
       implicit val id = "test4"
       val sub = system actorOf AggregateSubscription.props(id, "main", probe.ref, noJournalAccessExpected)
@@ -105,7 +105,7 @@ class AggregateSubscriptionSpec extends AbstractSpec {
       probe.expectNoMsg(10.millis)
     }
 
-    "must replay non ack'ed messages" in {
+    "replay non ack'ed messages" in {
       val probe = TestProbe()
       implicit val id = "test5"
       val sub = system actorOf AggregateSubscription.props(id, "main", probe.ref, noJournalAccessExpected)
@@ -127,7 +127,7 @@ class AggregateSubscriptionSpec extends AbstractSpec {
       probe.expectNoMsg(10.millis)
     }
 
-    "must only deliver next message after ack is received" in {
+    "only deliver next message after ack is received" in {
       val probe = TestProbe()
       implicit val id = "test6"
       val sub = system actorOf AggregateSubscription.props(id, "main", probe.ref, noJournalAccessExpected)
@@ -149,7 +149,7 @@ class AggregateSubscriptionSpec extends AbstractSpec {
       probe.expectEvent(event3)
     }
 
-    "must deliver in order if it receives new events while replaying the journal" in {
+    "deliver in order if it receives new events while replaying the journal" in {
       val probe = TestProbe()
       implicit val id = "test7"
       val sub = system actorOf AggregateSubscription.props(id, "main", probe.ref, noJournalAccessExpected)
