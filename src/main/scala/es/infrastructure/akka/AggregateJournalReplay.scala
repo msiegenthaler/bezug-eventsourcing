@@ -27,7 +27,7 @@ class AggregateJournalReplay[A <: AggregateType](val aggregateType: A) {
       case e@EventEmitted(seq, Event(event)) if seq >= from =>
         if (seq <= until) {
           val eventData = EventData(aggregateId, seq, event)
-          context.parent ! e
+          context.parent ! eventData
         } else context stop self
     }
   }
