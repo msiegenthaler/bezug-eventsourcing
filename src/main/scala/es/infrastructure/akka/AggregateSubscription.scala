@@ -35,10 +35,17 @@ object AggregateSubscription {
     private var pos = start - 1
     private var buffer = SortedSet.empty[EventData]
 
+    private object Config {
+      private def config = context.system.settings.config.getConfig("ch.eventsourced.aggregate-subscription")
+      def retries = config.getInt("retries-until-restart")
+      def retryTimeout = config.getDuration("retry-interval", MILLISECONDS).millis
+    }
+
     override val supervisorStrategy = OneForOneStrategy() {
       case _ => Escalate // restart this actor if the journal fails.
     }
-    val target = context actorOf OrderPreservingAck.props(_target, 1.seconds) {
+    val target = context actorOf OrderPreservingAck.props(_target,
+      retryAfter = Config.retryTimeout, retryLimit = Config.retries, maxInFlight = 2) {
       case AggregateEvent(_, _, ack) => _ == ack
     }
 
