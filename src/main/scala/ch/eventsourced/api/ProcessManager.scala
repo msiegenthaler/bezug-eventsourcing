@@ -28,6 +28,7 @@ trait ProcessManagerType {
 
   type Id
   type Command
+  type Error
   type Manager <: ProcessManager[Manager, Id, Command, Next]
   trait BaseManager extends ProcessManager[Manager, Id, Command, Next]
 
