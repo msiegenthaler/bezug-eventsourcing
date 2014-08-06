@@ -144,7 +144,7 @@ class AggregateSubscriptionSpec extends AbstractSpec {
       expectMsg("ack2")
       expectMsg("ack3")
 
-      probe.expectNoMsg(1.second)
+      probe.expectNoMsg(500.millis)
 
       ack1()
       probe.expectEvent(event2)
@@ -193,9 +193,9 @@ class AggregateSubscriptionSpec extends AbstractSpec {
       sub ! OnEvent(event1, "ack1")
       expectMsg("ack1")
       probe.expectEvent(event1, doAck = false)
-      probe.expectNoMsg(2.seconds)
+      probe.expectNoMsg(500.millis)
       probe.expectEvent(event1, doAck = false)
-      probe.expectNoMsg(3.seconds)
+      probe.expectNoMsg(500.millis)
       probe.expectEvent(event1)
       probe.expectNoMsg()
     }

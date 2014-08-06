@@ -38,7 +38,7 @@ object AggregateSubscription {
     override val supervisorStrategy = OneForOneStrategy() {
       case _ => Escalate // restart this actor if the journal fails.
     }
-    val target = context actorOf OrderPreservingAck.props(_target, 3.seconds) {
+    val target = context actorOf OrderPreservingAck.props(_target, 1.seconds) {
       case AggregateEvent(_, _, ack) => _ == ack
     }
 
