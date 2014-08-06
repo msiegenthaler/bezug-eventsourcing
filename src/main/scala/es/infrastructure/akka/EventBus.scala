@@ -7,14 +7,13 @@ object EventBus {
   sealed trait EventBusCommand
   sealed trait EventBusEvent
 
-
   /**
    * Set up a persistent subscription to the aggregate. The subscriber will continue to receive events after a system
    * restart. So it's important to unsubscribe.
-   * The subscription will start at the event with the sequenceId `startEventSeq`.
+   * The subscription will start at the event with the sequenceId `startEventSeq` (first event delivered will have this seq).
    */
   case class SubscribeToAggregate(subscriptionId: String, aggregate: AggregateKey,
-    subscriber: ActorPath, startEventSeq: Long, ack: Any) extends EventBusCommand
+    subscriber: ActorPath, startEventSeq: Long = 0, ack: Any) extends EventBusCommand
 
   /** Event delivered a part of the persistent subscription. Reply with `ack`. */
   case class AggregateEvent(subscriptionId: String, event: EventData, ack: Any) extends EventBusEvent
