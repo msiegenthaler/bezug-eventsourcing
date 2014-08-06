@@ -28,7 +28,7 @@ object AggregateSubscriptionManager {
 
   private type SubscriptionId = String
   private class Publisher(namePrefix: String, journalReplay: (Long, Long) => Props) extends PersistentActor with ActorLogging {
-    def persistenceId = s"$namePrefix\EventPublisher"
+    def persistenceId = s"$namePrefix/SubscriptionManager"
 
     //TODO use snapshots to improve performance
     //TODO think through supervisor role (probably individual restart)
