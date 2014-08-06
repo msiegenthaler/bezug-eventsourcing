@@ -4,7 +4,7 @@ import akka.actor.{Props, Actor}
 import ch.eventsourced.infrastructure.akka.AggregateManager._
 
 /** Distribute commands to aggregate actors based on the types. */
-object CommandDistributor {
+object AggregateCommandDistributor {
   def props[Cmd, Err](
     aggregates: Traversable[AggregateManager[_, _ <: Cmd, _ <: Err]],
     unknown: Err): Props = {
