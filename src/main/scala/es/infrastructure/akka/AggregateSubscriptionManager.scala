@@ -20,18 +20,21 @@ import es.infrastructure.akka.EventBus.{UnsubscribeFromAggregate, SubscribeToAgg
  * - SubscribeToAggregate
  * - UnsubscribeFromAggregate
  * - OnEvent: Forwards to all subscribers
-  */
+ */
 object AggregateSubscriptionManager {
   case class Start(at: Long)
+  case class AddManualSubscription(subscriptionId: String, target: ActorRef)
 
   def props(namePrefix: String, journalReplay: (Long, Long) => Props): Props = Props(new Publisher(namePrefix, journalReplay))
 
   private type SubscriptionId = String
-  private class Publisher(namePrefix: String, journalReplay: (Long, Long) => Props) extends PersistentActor with ActorLogging {
+  private class Publisher(namePrefix: String, journalReplay: (Long, Long) => Props)
+    extends PersistentActor with ActorLogging with Stash {
     def persistenceId = s"$namePrefix/SubscriptionManager"
 
     //TODO use snapshots to improve performance
     //TODO think through supervisor role (probably individual restart)
+
 
     private var pos = -1L
     private var subscriptionActors = Map.empty[SubscriptionId, ActorRef]
@@ -41,8 +44,9 @@ object AggregateSubscriptionManager {
       case Start(at) =>
         log.debug(s"Event handling started, expecting live events starting at $at")
         pos = at
-        subscriptionActors.values.foreach(_ ! AggregateSubscription.Start(at))
         context become running
+        unstashAll()
+      case other => stash()
     }
     def running: Receive = {
       case OnEvent(event, ack) =>
@@ -63,8 +67,7 @@ object AggregateSubscriptionManager {
           case Subscribed(id, path, start) =>
             log.info(s"New subscription added: $id from $subscriber, starting at $start")
             val selection = context.actorSelection(path)
-            val actor = startSubscription(id, selection, start)
-            actor ! Start(pos)
+            resolveSubscription(id, selection, start)
             sender() ! ack
         }
       case UnsubscribeFromAggregate(id, _, ack) =>
@@ -72,6 +75,13 @@ object AggregateSubscriptionManager {
         if (subscriptionActors.isDefinedAt(id)) {
           subscriptionActors(id) ! Close(SubscriptionHandlerClosed(id, sender(), ack))
         } else sender() ! ack
+
+      case SubscriptionRefResolved(id, ref, start) =>
+        startSubscription(id, ref, start)
+
+      case AddManualSubscription(id, target) =>
+        log.debug(s"Adding new manual subscription: $id from $target")
+        startSubscription(id, target, 0)
 
       case SubscriptionHandlerClosed(id, origin, ack) =>
         persist(Unsubscribed(id)) { _ =>
@@ -90,17 +100,26 @@ object AggregateSubscriptionManager {
       case RecoveryCompleted =>
         log.debug(s"RecoveryCompleted: Starting ${subscribersToStart.size} subscriptions")
         subscribersToStart.foreach {
-          case (id, (target, start)) => startSubscription(id, target, start)
+          case (id, (target, start)) => resolveSubscription(id, target, start)
         }
         subscribersToStart = Map.empty
     }
     private var subscribersToStart = Map.empty[SubscriptionId, (ActorSelection, Long)]
 
-    def startSubscription(id: SubscriptionId, target: ActorSelection, start: Long) = {
+    def resolveSubscription(id: SubscriptionId, target: ActorSelection, start: Long): Unit = {
+      val f = target.resolveOne(10.minutes)
+      f.onSuccess {
+        case ref => context.self ! SubscriptionRefResolved(id, ref, start)
+      }
+      f.onFailure {
+        case error => log.warning(s"Cannot set up subscription $id: could not resolve actor selection $target")
+      }
+    }
+    def startSubscription(id: SubscriptionId, target: ActorRef, start: Long): Unit = {
       val props = AggregateSubscription.props(id, target, journalReplay, start)
-      val actor = context actorOf props
+      val actor = context.actorOf(props, id)
       subscriptionActors += id -> actor
-      actor
+      actor ! AggregateSubscription.Start(pos)
     }
   }
 
@@ -108,5 +127,6 @@ object AggregateSubscriptionManager {
   private case class Subscribed(id: SubscriptionId, subscriber: ActorPath, start: Long)
   private case class Unsubscribed(id: SubscriptionId)
 
+  private case class SubscriptionRefResolved(id: SubscriptionId, ref: ActorRef, start: Long)
   private case object EventAck
 }
