@@ -8,6 +8,7 @@ import akka.contrib.pattern.ShardRegion._
 import akka.persistence.{PersistentActor, RecoveryCompleted}
 import scalaz._
 import es.api.{EventData, AggregateType}
+import es.infrastructure.akka.AggregateSubscriptionManager.{Start, AddManualSubscription}
 import es.infrastructure.akka.EventBus.{UnsubscribeFromAggregate, SubscribeToAggregate}
 import AggregateActor._
 
@@ -17,11 +18,19 @@ import AggregateActor._
  * is used for persistence of the events. All persisted events are sent to the event handler as OnEvent
  * messages. This messages must be acknowledged.
  *
+ * The aggregate also handles subscriptions. There are two ways:
+ * - Aggregate subscriptions: Set up by sending a SubscribeToAggregate to the aggregate. It will survive system
+ * restarts, only events that were not ack'd before will be sent.
+ * - Aggregate type subscriptions: Use the 'eventSubscriptions' parameter. Will receive events from all aggregates
+ * of this type. The state is persistent (which events were already handled).
+ * In both cases the events will be sent as AggregateEvent.
+ *
  * When an aggregate has not received commands for some time it is removed from memory. At the next command
  * it is again constructed from the persistent events in the event store. This is transparent to the user.
  */
 class AggregateActorManager[I, C, E](contextName: String,
-  val aggregateType: AggregateType {type Id = I; type Command = C; type Error = E})
+  val aggregateType: AggregateType {type Id = I; type Command = C; type Error = E},
+  eventSubscriptions: Map[String, ActorRef])
   (system: ActorSystem, shardCount: Int = 100, inMemoryTimeout: Duration = 5.minutes) {
   import aggregateType._
 
@@ -60,10 +69,15 @@ class AggregateActorManager[I, C, E](contextName: String,
 
     val subscriptionManager = {
       def journalProps(from: Long, until: Long) = journalReplay.props(id, persistenceId, from, until)
-      context actorOf AggregateSubscriptionManager.props(persistenceId, journalProps)
+      val props = AggregateSubscriptionManager.props(persistenceId, journalProps)
+      val mgr = context.actorOf(props, "SubscriptionManager")
+      eventSubscriptions foreach {
+        case (subId, target) => mgr ! AddManualSubscription(subId, persistenceId, target)
+      }
+      mgr
     }
-    val eventTarget = context actorOf OrderPreservingAck.props(subscriptionManager) {
-      case msg: OnEvent => _ == msg.ack
+    def eventTarget = context actorOf OrderPreservingAck.props(subscriptionManager) {
+      case OnEvent(_, ack) => _ == ack
     }
 
     log.debug(s"Starting aggregator actor for $name with id $persistenceId")
@@ -112,7 +126,8 @@ class AggregateActorManager[I, C, E](contextName: String,
         eventSeq = seq + 1
       case EventDelivered(id) => confirmDelivery(id)
       case RecoveryCompleted =>
-        log.info(s"Events successfully applied")
+        log.info(s"Events successfully applied, ${toSendOnRecovery.size} left to deliver")
+        subscriptionManager ! Start(eventSeq - toSendOnRecovery.size)
         sendOutstandingEvents()
     }
 
@@ -127,7 +142,7 @@ class AggregateActorManager[I, C, E](contextName: String,
     private var deliveryConfirmedUpTo: Long = -1
     private var toSendOnRecovery = Queue.empty[EventData]
     def confirmDelivery(eventSeq: Long) = if (eventSeq > deliveryConfirmedUpTo) {
-      assert(eventSeq == deliveryConfirmedUpTo + 1, s"out-of-order ack received")
+      if (eventSeq != deliveryConfirmedUpTo + 1) throw new IllegalStateException("out-of-order ack received")
       deliveryConfirmedUpTo = eventSeq
       if (recoveryRunning) toSendOnRecovery = toSendOnRecovery.dequeue._2
     }

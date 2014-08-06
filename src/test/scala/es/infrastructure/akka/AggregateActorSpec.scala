@@ -1,16 +1,17 @@
 package es.infrastructure.akka
 
-import es.infrastructure.akka.AggregateActor.OnEvent
 import scala.concurrent.duration._
-import akka.testkit.TestProbe
 import akka.util.Timeout
-import es.infrastructure.akka.counter.Kill
+import akka.testkit.TestProbe
+import es.infrastructure.akka.EventBus.AggregateEvent
 import es.api.EventData
+import es.infrastructure.akka.counter.Kill
 
 class AggregateActorSpec() extends AbstractSpec() {
   val eventHandler = TestProbe()
   val manager = {
-    new AggregateActorManager("AggregateActorSpec", counter, eventHandler.ref)(system, 1, 3.seconds)
+    val subs = Map("testProbe" -> eventHandler.ref)
+    new AggregateActorManager("AggregateActorSpec", counter, subs)(system, 1, 3.seconds)
   }
 
   implicit val timeout = Timeout(5.seconds)
@@ -23,7 +24,7 @@ class AggregateActorSpec() extends AbstractSpec() {
   def expectNoEvent() = eventHandler.expectNoMsg()
   def expectNoEvents() = eventHandler.expectNoMsg(0.seconds)
   def expectEvent(event: EventData, doAck: Boolean = true) = eventHandler.expectMsgPF() {
-    case OnEvent(`event`, ack) =>
+    case AggregateEvent("testProbe", `event`, ack) =>
       if (doAck) eventHandler.reply(ack)
   }
 
