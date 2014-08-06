@@ -67,7 +67,7 @@ object AggregateSubscriptionManager {
             actor ! Start(pos)
             sender() ! ack
         }
-      case UnsubscribeFromAggregate(id, ack) =>
+      case UnsubscribeFromAggregate(id, _, ack) =>
         log.debug(s"Unsubscribing $id")
         if (subscriptionActors.isDefinedAt(id)) {
           subscriptionActors(id) ! Close(SubscriptionHandlerClosed(id, sender(), ack))

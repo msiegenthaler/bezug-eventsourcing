@@ -88,7 +88,7 @@ class ProcessManagerInstance[I, C, E](contextName: String,
 
       case AggregateEvent(subId, event, ack) if !activeSubscriptions.contains(subId) =>
         //unrequested event, try to remove the subscription
-        removeSubscription(subId)
+        removeSubscription(subId, event.aggregateKey)
     }
 
     // From Journal
@@ -130,7 +130,7 @@ class ProcessManagerInstance[I, C, E](contextName: String,
         val pendingSubscribes = expectedSubscriptionsAfterRecovery -- activeSubscriptions.values
         val pendingUnsubscribes = activeSubscriptions.filterNot(e => expectedSubscriptionsAfterRecovery.contains(e._2))
         pendingSubscribes.foreach((addSubscription _).tupled)
-        pendingUnsubscribes.keys.foreach(removeSubscription)
+        pendingUnsubscribes.foreach(e => removeSubscription(e._1, e._2))
         expectedSubscriptionsAfterRecovery = Map.empty
 
         //Resend unacknowledged commands
@@ -169,10 +169,10 @@ class ProcessManagerInstance[I, C, E](contextName: String,
       commandDistributor ! SubscribeToAggregate(subscriptionId, to, context.self.path, fromSequence, ack)
     }
     def removeSubscription(to: AggregateKey): Unit = {
-      activeSubscriptions.filter(_._2 == to).map(_._1).foreach(removeSubscription)
+      activeSubscriptions.filter(_._2 == to).map(_._1).foreach(removeSubscription(_, to))
     }
-    def removeSubscription(id: String): Unit = {
-      commandDistributor ! UnsubscribeFromAggregate(id, SubscriptionRemoved(id))
+    def removeSubscription(id: String, to: AggregateKey): Unit = {
+      commandDistributor ! UnsubscribeFromAggregate(id, to, SubscriptionRemoved(id))
     }
 
     //Termination

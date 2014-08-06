@@ -20,5 +20,5 @@ object EventBus {
   case class AggregateEvent(subscriptionId: String, event: EventData, ack: Any) extends EventBusEvent
 
   /** Remove the (persistent) subscription. */
-  case class UnsubscribeFromAggregate(subscriptionId: String, ack: Any) extends EventBusCommand
+  case class UnsubscribeFromAggregate(subscriptionId: String, aggregate: AggregateKey, ack: Any) extends EventBusCommand
 }
