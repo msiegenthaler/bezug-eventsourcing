@@ -1,7 +1,6 @@
 package es.infrastructure.akka
 
 import scala.collection.immutable.Queue
-import scala.concurrent.duration.Duration
 import akka.actor._
 import akka.actor.SupervisorStrategy.{Escalate, Restart}
 import akka.persistence.{RecoveryCompleted, PersistentActor}
@@ -44,9 +43,9 @@ object AggregateSubscription {
         if (liveFrom > pos + 1) {
           //load "missing" events from journal
           context actorOf journalReplay(pos + 1, liveFrom - 1)
-          log.debug(s"Started with journal replay (pos=$pos, live events start at $liveFrom")
+          log.debug(s"Started with journal replay (next=${pos + 1}, live events start at $liveFrom)")
         } else {
-          log.debug(s"Started with live-events only (pos=$pos, live events start at $liveFrom")
+          log.debug(s"Started with live-events only (next=${pos + 1}, live events start at $liveFrom)")
         }
         context become handleSubscription(liveFrom)
         unstashAll()
