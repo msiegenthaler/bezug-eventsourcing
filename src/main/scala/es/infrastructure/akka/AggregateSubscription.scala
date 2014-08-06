@@ -30,7 +30,7 @@ object AggregateSubscription {
     def compare(x: EventData, y: EventData) = x.sequence compare y.sequence
   }
   private class SubscriptionActor(id: String, partition: String, journalReplay: (Long, Long) => Props,
-    _target: ActorRef, start: Long = 0, maxBufferSize: Long = 1000) extends PersistentActor with ActorLogging with Stash {
+    _target: ActorRef, start: Long = 0) extends PersistentActor with ActorLogging with Stash {
     def persistenceId = s"AggregateSubscription/$id/$partition"
     private var pos = start - 1
     private var buffer = SortedSet.empty[EventData]
@@ -39,6 +39,7 @@ object AggregateSubscription {
       private def config = context.system.settings.config.getConfig("ch.eventsourced.aggregate-subscription")
       def retries = config.getInt("retries-until-restart")
       def retryTimeout = config.getDuration("retry-interval", MILLISECONDS).millis
+      val maxBufferSize = config.getLong("max-buffered-messages")
     }
 
     override val supervisorStrategy = OneForOneStrategy() {
@@ -116,7 +117,7 @@ object AggregateSubscription {
       } else {
         //enqueue it
         buffer += event
-        if (buffer.size > maxBufferSize) throw new RuntimeException(s"Event buffer exceeded max size of $maxBufferSize")
+        if (buffer.size > Config.maxBufferSize) throw new RuntimeException(s"Event buffer exceeded max size of ${Config.maxBufferSize}")
       }
     }
 
