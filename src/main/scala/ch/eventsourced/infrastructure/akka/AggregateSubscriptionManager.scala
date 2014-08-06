@@ -7,9 +7,8 @@ import scala.concurrent.ExecutionContext.Implicits.global
 import akka.actor._
 import akka.persistence.{RecoveryCompleted, PersistentActor}
 import akka.pattern.ask
-import ch.eventsourced.infrastructure.akka.AggregateActor.OnEvent
-import ch.eventsourced.infrastructure.akka.AggregateSubscription.Close
-import ch.eventsourced.infrastructure.akka.EventBus.{UnsubscribeFromAggregate, SubscribeToAggregate}
+import ch.eventsourced.infrastructure.akka.AggregateManager.{UnsubscribeFromAggregate, SubscribeToAggregate}
+import ch.eventsourced.infrastructure.akka.AggregateSubscription.{OnEvent, Close}
 
 /**
  * Manages subscriptions to aggregate events. This includes retroactive subscriptions.

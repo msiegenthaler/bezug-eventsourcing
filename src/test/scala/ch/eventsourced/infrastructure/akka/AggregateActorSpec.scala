@@ -3,9 +3,9 @@ package ch.eventsourced.infrastructure.akka
 import scala.concurrent.duration._
 import akka.util.Timeout
 import akka.testkit.TestProbe
-import ch.eventsourced.infrastructure.akka.EventBus.AggregateEvent
 import ch.eventsourced.api.EventData
 import ch.eventsourced.infrastructure.akka.counter.Kill
+import ch.eventsourced.infrastructure.akka.AggregateManager._
 
 class AggregateActorSpec() extends AbstractSpec() {
   val eventHandler = TestProbe()
