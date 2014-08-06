@@ -8,6 +8,7 @@ import akka.contrib.pattern.ShardRegion._
 import akka.persistence.{PersistentActor, RecoveryCompleted}
 import scalaz._
 import es.api.{EventData, AggregateType}
+import es.infrastructure.akka.EventBus.{UnsubscribeFromAggregate, SubscribeToAggregate}
 import AggregateActor._
 
 /**
@@ -20,8 +21,7 @@ import AggregateActor._
  * it is again constructed from the persistent events in the event store. This is transparent to the user.
  */
 class AggregateActorManager[I, C, E](contextName: String,
-  val aggregateType: AggregateType {type Id = I; type Command = C; type Error = E},
-  eventHandler: ActorRef)
+  val aggregateType: AggregateType {type Id = I; type Command = C; type Error = E})
   (system: ActorSystem, shardCount: Int = 100, inMemoryTimeout: Duration = 5.minutes) {
   import aggregateType._
 
@@ -34,7 +34,8 @@ class AggregateActorManager[I, C, E](contextName: String,
 
   private val idExtractor: IdExtractor = {
     case msg@Execute(Command(id, cmd), suc, fail) => (serializeId(id), msg)
-    case other => ("", other)
+    case msg@SubscribeToAggregate(_, AggregateKey(id), _, _, _) => (serializeId(id), msg)
+    case msg@UnsubscribeFromAggregate(_, AggregateKey(id), _) => (serializeId(id), msg)
   }
   private val shardResolver: ShardResolver =
     idExtractor.andThen(_._1.hashCode % shardCount).andThen(_.toString)
@@ -43,6 +44,8 @@ class AggregateActorManager[I, C, E](contextName: String,
   private val region = {
     ClusterSharding(system).start(regionName, Some(Props(new AggregateRootActor)), idExtractor, shardResolver)
   }
+
+  private val journalReplay = new AggregateJournalReplay(aggregateType)
 
   //TODO command deduplication
   private class AggregateRootActor extends PersistentActor with ActorLogging {
@@ -55,8 +58,11 @@ class AggregateActorManager[I, C, E](contextName: String,
     private var eventSeq: Long = 0
     private var state = seed(id)
 
-    //ensures the correct ordering of events and retries sending
-    val eventTarget = context actorOf OrderPreservingAck.props(eventHandler) {
+    val subscriptionManager = {
+      def journalProps(from: Long, until: Long) = journalReplay.props(id, persistenceId, from, until)
+      context actorOf AggregateSubscriptionManager.props(persistenceId, journalProps)
+    }
+    val eventTarget = context actorOf OrderPreservingAck.props(subscriptionManager) {
       case msg: OnEvent => _ == msg.ack
     }
 
@@ -87,6 +93,9 @@ class AggregateActorManager[I, C, E](contextName: String,
 
       case EventAck(id) =>
         persist(EventDelivered(id)) { _ => confirmDelivery(id)}
+
+      case s: SubscribeToAggregate => subscriptionManager ! s
+      case s: UnsubscribeFromAggregate => subscriptionManager ! s
 
       case ReceiveTimeout =>
         //ensure that we have no pending messages
