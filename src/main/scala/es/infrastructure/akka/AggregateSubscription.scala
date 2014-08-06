@@ -1,5 +1,6 @@
 package es.infrastructure.akka
 
+import scala.collection.SortedSet
 import scala.collection.immutable.Queue
 import akka.actor._
 import akka.actor.SupervisorStrategy.{Escalate, Restart}
@@ -25,11 +26,14 @@ object AggregateSubscription {
     Props(new SubscriptionActor(id, partition, journalReplay, target, startAtEventSequence))
   }
 
+  private implicit object EventDataOrdering extends Ordering[EventData] {
+    def compare(x: EventData, y: EventData) = x.sequence compare y.sequence
+  }
   private class SubscriptionActor(id: String, partition: String, journalReplay: (Long, Long) => Props,
     target: ActorRef, start: Long = 0, maxBufferSize: Long = 1000) extends PersistentActor with ActorLogging with Stash {
     def persistenceId = s"AggregateSubscription/$id/$partition"
     private var pos = start - 1
-    private var buffer = Queue.empty[EventData]
+    private var buffer = SortedSet.empty[EventData]
 
     override val supervisorStrategy = OneForOneStrategy() {
       case _ => Escalate // restart this actor if the journal fails.
@@ -37,6 +41,7 @@ object AggregateSubscription {
 
     //TODO use snapshots
     //TODO add overflow protection using aggregate journal backpressure and discarding of live events (reread from journal)
+    //TODO retries
 
     def receiveCommand = {
       case Start(liveFrom) =>
@@ -69,10 +74,9 @@ object AggregateSubscription {
         persist(EventAcknowledged(seq)) { _ =>
           pos = seq
           //send next to target
-          buffer.dequeueOption foreach {
-            case (event, b2) =>
-              target ! AggregateEvent(id, event, AckEvent(event.sequence))
-              buffer = b2
+          buffer.headOption.filter(_.sequence == pos + 1).foreach { event =>
+            target ! AggregateEvent(id, event, AckEvent(event.sequence))
+            buffer -= event
           }
         }
       case AckEvent(seq) if seq > pos + 1 =>
@@ -101,7 +105,7 @@ object AggregateSubscription {
         target ! AggregateEvent(id, event, AckEvent(event.sequence))
       } else {
         //enqueue it
-        buffer = buffer enqueue event
+        buffer += event
         if (buffer.size > maxBufferSize) throw new RuntimeException(s"Event buffer exceeded max size of $maxBufferSize")
       }
     }

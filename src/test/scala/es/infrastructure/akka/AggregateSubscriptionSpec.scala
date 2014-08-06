@@ -12,7 +12,7 @@ import es.infrastructure.akka.counter.{Incremented, Initialize}
 
 class AggregateSubscriptionSpec extends AbstractSpec {
 
-  def journalReplay(events: List[EventData], expectFrom: Long, expectUntil: Long)(from: Long, until: Long) = Props {
+  def journalReplay(events: Seq[EventData], expectFrom: Long, expectUntil: Long)(from: Long, until: Long) = Props {
     assert(expectFrom === from)
     assert(expectUntil === until)
     new Actor {
@@ -26,18 +26,23 @@ class AggregateSubscriptionSpec extends AbstractSpec {
     a
   }
 
+  implicit val timeout = 2.seconds
+
   implicit class EventProbe(probe: TestProbe) {
-    def expectEvent(event: EventData, doAck: Boolean = true)(implicit id: String) = probe.expectMsgPF() {
+    def expectEvent(event: EventData, doAck: Boolean = true)(implicit id: String) = probe.expectMsgPF(timeout, event.toString) {
       case AggregateEvent(id, `event`, ack) =>
         if (doAck) probe.reply(ack)
         ack
     }
   }
 
-
   val event1 = counter.EventData(Initialize().counter, 0, Incremented(0))
   val event2 = counter.EventData(Initialize().counter, 1, Incremented(1))
   val event3 = counter.EventData(Initialize().counter, 2, Incremented(2))
+  val events = {
+    val c = Initialize().counter
+    (0 to 100).map(i => counter.EventData(c, i, Incremented(i)))
+  }
 
   "AggregateSubscription" must {
     "forward first message when at beginning and live stream from beginning" in {
@@ -135,11 +140,46 @@ class AggregateSubscriptionSpec extends AbstractSpec {
 
       sub ! OnEvent(event2, "ack2")
       sub ! OnEvent(event3, "ack3")
+      expectMsg("ack2")
+      expectMsg("ack3")
 
       probe.expectNoMsg()
       sub ! ack1
       probe.expectEvent(event2)
       probe.expectEvent(event3)
+    }
+
+    "must deliver in order if it receives new events while replaying the journal" in {
+      val probe = TestProbe()
+      implicit val id = "test7"
+      val sub = system actorOf AggregateSubscription.props(id, "main", probe.ref, noJournalAccessExpected)
+      probe.expectNoMsg()
+      sub ! Start(0)
+
+      val count = 10
+      val acks = events.take(count).map { event =>
+        val ack = "ack" + event.sequence
+        sub ! OnEvent(event, ack)
+        expectMsg(ack)
+      }
+      probe.expectEvent(events(0))
+      probe.expectEvent(events(1), doAck = false)
+      probe.expectNoMsg()
+      sub ! PoisonPill
+
+      val probe2 = TestProbe()
+      val sub2 = system actorOf AggregateSubscription.props(id, "main", probe2.ref,
+        journalReplay(events.take(count).drop(1), 1, count - 1))
+      sub2 ! Start(count)
+
+      sub2 ! OnEvent(events(count), "ae")
+      expectMsg("ae")
+      sub2 ! OnEvent(events(count + 1), "ae2")
+      expectMsg("ae2")
+
+      probe2.expectEvent(events(1))
+      events.take(count + 2).drop(2).foreach(probe2.expectEvent(_))
+      probe2.expectNoMsg(10.millis)
     }
   }
 
