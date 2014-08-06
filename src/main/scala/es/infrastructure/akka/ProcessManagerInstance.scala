@@ -41,6 +41,8 @@ class ProcessManagerInstance[I, C, E](contextName: String,
     private var done = false
     private var activeSubscriptions = Map.empty[String, AggregateKey]
 
+    //TODO event deduplication
+
     //Live messages
     def receiveCommand = {
       case InitiateProcess(`id`, event, ack) =>
