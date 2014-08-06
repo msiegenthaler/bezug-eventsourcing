@@ -62,15 +62,21 @@ trait AggregateType {
     def unapply(a: Any): Option[Error] = a.cast[Error]
   }
 
-  def AggregateKey(aggregateId: Id): AggregateKey = new AggregateKey {
-    val aggregateType = AggregateType.this
-    val id = aggregateId.asInstanceOf[aggregateType.Id]
-    override def hashCode = aggregateType.hashCode ^ id.hashCode
-    override def equals(o: Any) = o match {
-      case o: AggregateKey => aggregateType == o.aggregateType && id == o.id
-      case _ => false
+  object AggregateKey {
+    def apply(aggregateId: Id): AggregateKey = new AggregateKey {
+      val aggregateType = AggregateType.this
+      val id = aggregateId.asInstanceOf[aggregateType.Id]
+      override def hashCode = aggregateType.hashCode ^ id.hashCode
+      override def equals(o: Any) = o match {
+        case o: AggregateKey => aggregateType == o.aggregateType && id == o.id
+        case _ => false
+      }
+      override def toString = s"AggregateKey($aggregateType, $id)"
     }
-    override def toString = s"AggregateKey($aggregateType, $id)"
+    def unapply(key: AggregateKey): Option[Id] = {
+      if (key.aggregateType == AggregateType.this) Some(key.id.asInstanceOf)
+      else None
+    }
   }
 
   object EventData {
