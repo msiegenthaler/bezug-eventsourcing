@@ -76,7 +76,8 @@ class AggregateActorManager[I, C, E](contextName: String,
       }
       mgr
     }
-    def eventTarget = context actorOf OrderPreservingAck.props(subscriptionManager) {
+    def eventTarget = context actorOf OrderPreservingAck.props(subscriptionManager,
+      retryAfter = 1.second, retryLimit = 120, maxInFlight = 2000) {
       case OnEvent(_, ack) => _ == ack
     }
 
@@ -105,8 +106,12 @@ class AggregateActorManager[I, C, E](contextName: String,
             sender() ! fail(error.asInstanceOf)
         }
 
-      case EventAck(id) =>
-        persist(EventDelivered(id)) { _ => confirmDelivery(id)}
+      case EventAck(seq) if (seq > deliveryConfirmedUpTo) =>
+        if (seq == deliveryConfirmedUpTo + 1) {
+          persist(EventDelivered(seq)) { _ => confirmDelivery(seq)}
+        } else {
+          log.warning(s"Ignoring out-of-order delivery ($seq does not follow $deliveryConfirmedUpTo).")
+        }
 
       case s: SubscribeToAggregate => subscriptionManager ! s
       case s: UnsubscribeFromAggregate => subscriptionManager ! s
@@ -128,7 +133,7 @@ class AggregateActorManager[I, C, E](contextName: String,
       case RecoveryCompleted =>
         log.info(s"Events successfully applied, ${toSendOnRecovery.size} left to deliver")
         subscriptionManager ! Start(eventSeq - toSendOnRecovery.size)
-        sendOutstandingEvents()
+        sendUnconfirmedEvents()
     }
 
     def handleEvent(emit: EventEmitted[Event]) = {
@@ -141,16 +146,17 @@ class AggregateActorManager[I, C, E](contextName: String,
 
     private var deliveryConfirmedUpTo: Long = -1
     private var toSendOnRecovery = Queue.empty[EventData]
-    def confirmDelivery(eventSeq: Long) = if (eventSeq > deliveryConfirmedUpTo) {
-      if (eventSeq != deliveryConfirmedUpTo + 1) throw new IllegalStateException("out-of-order ack received")
-      deliveryConfirmedUpTo = eventSeq
+    def confirmDelivery(seq: Long) = {
+      if (seq != deliveryConfirmedUpTo + 1)
+        throw new IllegalStateException(s"out-of-order ack: $eventSeq does not follow $deliveryConfirmedUpTo")
+      deliveryConfirmedUpTo = seq
       if (recoveryRunning) toSendOnRecovery = toSendOnRecovery.dequeue._2
     }
     def deliver(event: EventData) = {
       if (recoveryRunning) toSendOnRecovery = toSendOnRecovery enqueue event
       else eventTarget ! OnEvent(event, EventAck(event.sequence))
     }
-    def sendOutstandingEvents() = {
+    def sendUnconfirmedEvents() = {
       toSendOnRecovery.foreach { event =>
         eventTarget ! OnEvent(event, EventAck(event.sequence))
       }
