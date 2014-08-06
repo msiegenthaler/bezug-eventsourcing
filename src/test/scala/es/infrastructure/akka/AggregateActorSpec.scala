@@ -135,8 +135,6 @@ class AggregateActorSpec() extends AbstractSpec() {
       executeSuccess(Increment(init.counter))
       expectNoEvents()
 
-      Thread.sleep(2.seconds.toMillis)
-
       expectEvent(counter.Event.Data(init.counter, 0, Incremented(1)))
       expectEvent(counter.Event.Data(init.counter, 1, Incremented(2)))
       expectNoEvents()

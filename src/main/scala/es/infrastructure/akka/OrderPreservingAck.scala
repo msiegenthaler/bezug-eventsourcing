@@ -22,7 +22,7 @@ object OrderPreservingAck {
   case class RetryLimitExceeded(limit: Long) extends RuntimeException(s"Retry limit of $limit exceeded")
 
   private class ActorImpl(target: ActorRef, ackFor: PartialFunction[Any, Any => Boolean], maxInFlight: Int,
-    retryAfter: FiniteDuration, retryLimit: Int) extends Actor {
+    retryAfter: FiniteDuration, retryLimit: Int) extends Actor with ActorLogging {
     private var expectedAck = Option.empty[InFlightMessage]
     private var queue = Queue.empty[(ActorRef, Any)]
 
@@ -44,6 +44,7 @@ object OrderPreservingAck {
         expectedAck.filter(_.timeSinceSent > retryAfter).foreach { inFlight =>
           if (inFlight.retries >= retryLimit) throw RetryLimitExceeded(retryLimit)
           else {
+            log.debug(s"retrying message delivery: ${inFlight.msg} (number=${inFlight.retry})")
             target ! inFlight.msg
             expectedAck = Some(inFlight.retry)
           }
