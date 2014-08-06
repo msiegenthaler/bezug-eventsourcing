@@ -1,7 +1,7 @@
 package es.infrastructure.akka
 
 import scala.collection.SortedSet
-import scala.collection.immutable.Queue
+import scala.concurrent.duration._
 import akka.actor._
 import akka.actor.SupervisorStrategy.{Escalate, Restart}
 import akka.persistence.{RecoveryCompleted, PersistentActor}
@@ -30,13 +30,16 @@ object AggregateSubscription {
     def compare(x: EventData, y: EventData) = x.sequence compare y.sequence
   }
   private class SubscriptionActor(id: String, partition: String, journalReplay: (Long, Long) => Props,
-    target: ActorRef, start: Long = 0, maxBufferSize: Long = 1000) extends PersistentActor with ActorLogging with Stash {
+    _target: ActorRef, start: Long = 0, maxBufferSize: Long = 1000) extends PersistentActor with ActorLogging with Stash {
     def persistenceId = s"AggregateSubscription/$id/$partition"
     private var pos = start - 1
     private var buffer = SortedSet.empty[EventData]
 
     override val supervisorStrategy = OneForOneStrategy() {
       case _ => Escalate // restart this actor if the journal fails.
+    }
+    val target = context actorOf OrderPreservingAck.props(_target, 3.seconds) {
+      case AggregateEvent(_, _, ack) => _ == ack
     }
 
     //TODO use snapshots

@@ -32,7 +32,8 @@ class AggregateSubscriptionSpec extends AbstractSpec {
     def expectEvent(event: EventData, doAck: Boolean = true)(implicit id: String) = probe.expectMsgPF(timeout, event.toString) {
       case AggregateEvent(id, `event`, ack) =>
         if (doAck) probe.reply(ack)
-        ack
+        val s = probe.sender()
+        () => s ! ack
     }
   }
 
@@ -143,8 +144,9 @@ class AggregateSubscriptionSpec extends AbstractSpec {
       expectMsg("ack2")
       expectMsg("ack3")
 
-      probe.expectNoMsg()
-      sub ! ack1
+      probe.expectNoMsg(1.second)
+
+      ack1()
       probe.expectEvent(event2)
       probe.expectEvent(event3)
     }
@@ -164,7 +166,6 @@ class AggregateSubscriptionSpec extends AbstractSpec {
       }
       probe.expectEvent(events(0))
       probe.expectEvent(events(1), doAck = false)
-      probe.expectNoMsg()
       sub ! PoisonPill
 
       val probe2 = TestProbe()
@@ -180,6 +181,23 @@ class AggregateSubscriptionSpec extends AbstractSpec {
       probe2.expectEvent(events(1))
       events.take(count + 2).drop(2).foreach(probe2.expectEvent(_))
       probe2.expectNoMsg(10.millis)
+    }
+
+    "retry event delivery" in {
+      val probe = TestProbe()
+      implicit val id = "test8"
+      val sub = system actorOf AggregateSubscription.props(id, "main", probe.ref, noJournalAccessExpected)
+      probe.expectNoMsg()
+      sub ! Start(0)
+
+      sub ! OnEvent(event1, "ack1")
+      expectMsg("ack1")
+      probe.expectEvent(event1, doAck = false)
+      probe.expectNoMsg(2.seconds)
+      probe.expectEvent(event1, doAck = false)
+      probe.expectNoMsg(3.seconds)
+      probe.expectEvent(event1)
+      probe.expectNoMsg()
     }
   }
 
