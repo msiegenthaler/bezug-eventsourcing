@@ -1,10 +1,12 @@
 package es.infrastructure.akka
 
 import scala.collection.immutable.Queue
-import akka.actor.{ActorSelection, Props}
+import scala.concurrent.duration.Duration
+import akka.actor._
+import akka.actor.SupervisorStrategy.{Escalate, Restart}
 import akka.persistence.{RecoveryCompleted, PersistentActor}
 import es.api.EventData
-import es.infrastructure.akka.AggregateActor.{OnEvent, EventEmitted}
+import es.infrastructure.akka.AggregateActor.OnEvent
 import es.infrastructure.akka.EventBus.AggregateEvent
 
 /**
@@ -15,45 +17,56 @@ import es.infrastructure.akka.EventBus.AggregateEvent
  * The events are sent to the target as EventBus.AggregateEvent, acks are noted persistently.
  */
 object AggregateSubscription {
-  /** Send to start the subscription. */
+  /** Send to start the subscription. `liveEventFrom` is the sequence of the first event that will be received live. */
   case class Start(lifeEventsFrom: Long)
   /** Close the subscription. Events pending ack will be discarded. */
   case class Close(whenDone: Any)
 
-  def props(id: String, target: ActorSelection, journalReplay: (Long, Long) => Props, startAtEventSequence: Long = 0): Props = {
+  def props(id: String, target: ActorRef, journalReplay: (Long, Long) => Props, startAtEventSequence: Long = 0): Props = {
     Props(new SubscriptionActor(id, journalReplay, target, startAtEventSequence))
   }
 
   private class SubscriptionActor(id: String, journalReplay: (Long, Long) => Props,
-    target: ActorSelection, start: Long, maxBufferSize: Long = 1000) extends PersistentActor {
+    target: ActorRef, start: Long = 0, maxBufferSize: Long = 1000) extends PersistentActor with ActorLogging with Stash {
     def persistenceId = s"AggregateSubscription/$id"
-    private var pos = start
+    private var pos = start - 1
     private var buffer = Queue.empty[EventData]
+
+    override val supervisorStrategy = OneForOneStrategy() {
+      case _ => Escalate // restart this actor if the journal fails.
+    }
 
     //TODO use snapshots
     //TODO add overflow protection using aggregate journal backpressure and discarding of live events (reread from journal)
 
     def receiveCommand = {
       case Start(liveFrom) =>
-        if (liveFrom > pos) {
+        if (liveFrom > pos + 1) {
           //load "missing" events from journal
-          context actorOf journalReplay(start, liveFrom)
+          context actorOf journalReplay(pos + 1, liveFrom - 1)
+          log.debug(s"Started with journal replay (pos=$pos, live events start at $liveFrom")
+        } else {
+          log.debug(s"Started with live-events only (pos=$pos, live events start at $liveFrom")
         }
         context become handleSubscription(liveFrom)
+        unstashAll()
+
+      case others => stash()
     }
 
     def handleSubscription(liveEventsFrom: Long): Receive = {
-      case event: EventData if event.sequence > pos && event.sequence <= liveEventsFrom =>
+      case event: EventData if event.sequence > pos && event.sequence < liveEventsFrom =>
         //from the journal
         handleEvent(event)
 
-      case OnEvent(event, ack) if event.sequence > pos && event.sequence > liveEventsFrom =>
+      case OnEvent(event, ack) =>
         //from the "live-stream"
-        handleEvent(event)
+        if (event.sequence > pos && event.sequence >= liveEventsFrom) {
+          handleEvent(event)
+        }
         sender ! ack
 
-      case AckEvent(seq) if seq > pos =>
-        assert(seq == pos + 1, s"out of sequence ack ($pos => $seq)")
+      case AckEvent(seq) if seq == pos + 1 =>
         persist(EventAcknowledged(seq)) { _ =>
           pos = seq
           //send next to target
@@ -63,6 +76,8 @@ object AggregateSubscription {
               buffer = b2
           }
         }
+      case AckEvent(seq) if seq > pos + 1 =>
+        log.warning(s"out of sequence ack $pos => $seq. Ignoring")
 
       case Close(d) =>
         persist(Closed(d)) {
