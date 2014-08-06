@@ -1,5 +1,6 @@
 package ch.eventsourced.infrastructure.akka
 
+import java.net.URLEncoder
 import scala.util.hashing.MurmurHash3
 import akka.actor.{ActorSystem, Props, ActorRef}
 import akka.contrib.pattern.ClusterSharding
@@ -26,6 +27,16 @@ class ProcessManagerActor[C, E](contextName: String, val processManagerType: Pro
   /** Handles ProcessInitationMessage messages. */
   def ref: ActorRef = region
 
+  /** Handles EventData messages and starts process instances as needed. */
+  val initiator = {
+    val i = new ProcessInitator(processManagerType, initiatorMessage)
+    val name = URLEncoder.encode(s"$regionName/Initiator", "UTF-8")
+    system.actorOf(i.props(ref), name)
+  }
+
+  /** Aggregate types to register the initiator to. */
+  def registerOn = processManagerType.triggeredBy
+
 
   private val idExtractor: IdExtractor = {
     case msg@ProcessInitationMessage(id, _, _) =>
@@ -35,12 +46,15 @@ class ProcessManagerActor[C, E](contextName: String, val processManagerType: Pro
     case any => ("", any)
   }
   private val shardResolver: ShardResolver = idExtractor.andThen(_._1)
+  private def initiatorMessage(id: Id, event: EventData, ack: Any) =
+    ProcessInitationMessage(id, event, ack)
+
   private val regionName = s"$contextName/ProcessManager/$name/Manager"
   private val region = {
     ClusterSharding(system).start(regionName, Some(Props(new ManagerActor)), idExtractor, shardResolver)
   }
 
-  private val instance = new ProcessManagerInstance[Id, C, E](contextName, processManagerType, commandDistributor)
+  private val instance = new ProcessManagerInstance(contextName, processManagerType, commandDistributor)
 
 
   private class ManagerActor extends PersistentActor {
