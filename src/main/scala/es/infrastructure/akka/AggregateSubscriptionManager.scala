@@ -23,7 +23,7 @@ import es.infrastructure.akka.EventBus.{UnsubscribeFromAggregate, SubscribeToAgg
  */
 object AggregateSubscriptionManager {
   case class Start(at: Long)
-  case class AddManualSubscription(subscriptionId: String, target: ActorRef)
+  case class AddManualSubscription(subscriptionId: String, partitionId: String, target: ActorRef)
 
   def props(namePrefix: String, journalReplay: (Long, Long) => Props): Props = Props(new Publisher(namePrefix, journalReplay))
 
@@ -77,11 +77,11 @@ object AggregateSubscriptionManager {
         } else sender() ! ack
 
       case SubscriptionRefResolved(id, ref, start) =>
-        startSubscription(id, ref, start)
+        startSubscription(id, "0", ref, start)
 
-      case AddManualSubscription(id, target) =>
+      case AddManualSubscription(id, part, target) =>
         log.debug(s"Adding new manual subscription: $id from $target")
-        startSubscription(id, target, 0)
+        startSubscription(id, part, target, 0)
 
       case SubscriptionHandlerClosed(id, origin, ack) =>
         persist(Unsubscribed(id)) { _ =>
@@ -115,9 +115,9 @@ object AggregateSubscriptionManager {
         case error => log.warning(s"Cannot set up subscription $id: could not resolve actor selection $target")
       }
     }
-    def startSubscription(id: SubscriptionId, target: ActorRef, start: Long): Unit = {
-      val props = AggregateSubscription.props(id, target, journalReplay, start)
-      val actor = context.actorOf(props, id)
+    def startSubscription(id: SubscriptionId, partition: String, target: ActorRef, start: Long): Unit = {
+      val props = AggregateSubscription.props(id, partition, target, journalReplay, start)
+      val actor = context actorOf props
       subscriptionActors += id -> actor
       actor ! AggregateSubscription.Start(pos)
     }

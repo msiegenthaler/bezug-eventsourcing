@@ -43,7 +43,7 @@ class AggregateSubscriptionSpec extends AbstractSpec {
     "forward first message when at beginning and live stream from beginning" in {
       val probe = TestProbe()
       implicit val id = "test1"
-      val sub = system actorOf AggregateSubscription.props(id, probe.ref, noJournalAccessExpected)
+      val sub = system actorOf AggregateSubscription.props(id, "main", probe.ref, noJournalAccessExpected)
       probe.expectNoMsg()
       sub ! Start(0)
 
@@ -55,7 +55,7 @@ class AggregateSubscriptionSpec extends AbstractSpec {
     "forward messages when at beginning and live stream from beginning" in {
       val probe = TestProbe()
       implicit val id = "test2"
-      val sub = system actorOf AggregateSubscription.props(id, probe.ref, noJournalAccessExpected)
+      val sub = system actorOf AggregateSubscription.props(id, "main", probe.ref, noJournalAccessExpected)
       probe.expectNoMsg()
       sub ! Start(0)
 
@@ -71,7 +71,7 @@ class AggregateSubscriptionSpec extends AbstractSpec {
     "forward messages without journal access when start is the next live" in {
       val probe = TestProbe()
       implicit val id = "test3"
-      val sub = system actorOf AggregateSubscription.props(id, probe.ref, noJournalAccessExpected, 1)
+      val sub = system actorOf AggregateSubscription.props(id, "main", probe.ref, noJournalAccessExpected, 1)
       probe.expectNoMsg()
       sub ! Start(1)
 
@@ -83,7 +83,7 @@ class AggregateSubscriptionSpec extends AbstractSpec {
     "must not replay ack'ed messages" in {
       val probe = TestProbe()
       implicit val id = "test4"
-      val sub = system actorOf AggregateSubscription.props(id, probe.ref, noJournalAccessExpected)
+      val sub = system actorOf AggregateSubscription.props(id, "main", probe.ref, noJournalAccessExpected)
       probe.expectNoMsg()
       sub ! Start(0)
       sub ! OnEvent(event1, "ack1")
@@ -92,7 +92,7 @@ class AggregateSubscriptionSpec extends AbstractSpec {
       sub ! PoisonPill
 
       val probe2 = TestProbe()
-      val sub2 = system actorOf AggregateSubscription.props(id, probe2.ref, noJournalAccessExpected)
+      val sub2 = system actorOf AggregateSubscription.props(id, "main", probe2.ref, noJournalAccessExpected)
       sub2 ! Start(1)
       sub2 ! OnEvent(event2, "ack2")
       expectMsg("ack2")
@@ -103,7 +103,7 @@ class AggregateSubscriptionSpec extends AbstractSpec {
     "must replay non ack'ed messages" in {
       val probe = TestProbe()
       implicit val id = "test5"
-      val sub = system actorOf AggregateSubscription.props(id, probe.ref, noJournalAccessExpected)
+      val sub = system actorOf AggregateSubscription.props(id, "main", probe.ref, noJournalAccessExpected)
       probe.expectNoMsg()
       sub ! Start(0)
       sub ! OnEvent(event1, "ack1")
@@ -112,7 +112,7 @@ class AggregateSubscriptionSpec extends AbstractSpec {
       sub ! PoisonPill
 
       val probe2 = TestProbe()
-      val sub2 = system actorOf AggregateSubscription.props(id, probe2.ref, journalReplay(event1 :: Nil, 0, 0))
+      val sub2 = system actorOf AggregateSubscription.props(id, "main", probe2.ref, journalReplay(event1 :: Nil, 0, 0))
       sub2 ! Start(1)
       probe2.expectEvent(event1)
 
@@ -125,7 +125,7 @@ class AggregateSubscriptionSpec extends AbstractSpec {
     "must only deliver next message after ack is received" in {
       val probe = TestProbe()
       implicit val id = "test6"
-      val sub = system actorOf AggregateSubscription.props(id, probe.ref, noJournalAccessExpected)
+      val sub = system actorOf AggregateSubscription.props(id, "main", probe.ref, noJournalAccessExpected)
       probe.expectNoMsg()
       sub ! Start(0)
 

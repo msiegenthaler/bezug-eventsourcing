@@ -21,13 +21,13 @@ object AggregateSubscription {
   /** Close the subscription. Events pending ack will be discarded. */
   case class Close(whenDone: Any)
 
-  def props(id: String, target: ActorRef, journalReplay: (Long, Long) => Props, startAtEventSequence: Long = 0): Props = {
-    Props(new SubscriptionActor(id, journalReplay, target, startAtEventSequence))
+  def props(id: String, partition: String, target: ActorRef, journalReplay: (Long, Long) => Props, startAtEventSequence: Long = 0): Props = {
+    Props(new SubscriptionActor(id, partition, journalReplay, target, startAtEventSequence))
   }
 
-  private class SubscriptionActor(id: String, journalReplay: (Long, Long) => Props,
+  private class SubscriptionActor(id: String, partition: String, journalReplay: (Long, Long) => Props,
     target: ActorRef, start: Long = 0, maxBufferSize: Long = 1000) extends PersistentActor with ActorLogging with Stash {
-    def persistenceId = s"AggregateSubscription/$id"
+    def persistenceId = s"AggregateSubscription/$id/$partition"
     private var pos = start - 1
     private var buffer = Queue.empty[EventData]
 
