@@ -11,7 +11,7 @@ class AggregateActorSpec() extends AbstractSpec() {
   val eventHandler = TestProbe()
   val manager = {
     val subs = Map("testProbe" -> eventHandler.ref)
-    new AggregateActorManager("AggregateActorSpec", counter, subs)(system, 1, 3.seconds)
+    new AggregateManager("AggregateActorSpec", counter, subs)(system, 1, 3.seconds)
   }
 
   implicit val timeout = Timeout(5.seconds)

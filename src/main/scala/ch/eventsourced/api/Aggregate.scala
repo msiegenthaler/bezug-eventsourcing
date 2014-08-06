@@ -1,4 +1,5 @@
-package ch.eventsourced.api
+package ch.eventsourced
+package api
 
 import scala.language.implicitConversions
 import shapeless._
@@ -50,7 +51,7 @@ trait AggregateType {
 
     object Data {
       def apply(aggregate: Id, sequence: Long, event: Event) =
-        eventsourced.api.EventData(AggregateType.this)(aggregate, sequence, event)
+        api.EventData(AggregateType.this)(aggregate, sequence, event)
       def unapply(eventData: ch.eventsourced.api.EventData): Option[EventData] =
         if (eventData.aggregateType == AggregateType.this) Some(eventData) else None
     }
@@ -79,7 +80,7 @@ trait AggregateType {
 
   object EventData {
     def apply(aggregate: Id, sequence: Long, event: Event) = {
-      eventsourced.api.EventData(AggregateType.this)(aggregate, sequence, event)
+      api.EventData(AggregateType.this)(aggregate, sequence, event)
     }
     def unapply(e: ch.eventsourced.api.EventData): Option[(Id, Long, Event)] = {
       if (e.aggregateType == AggregateType.this) {
