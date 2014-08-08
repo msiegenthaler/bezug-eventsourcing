@@ -20,6 +20,7 @@ import ch.eventsourced.api.{EventData, ProcessManagerType}
 class ProcessManagerActor[C, E](contextName: String, val processManagerType: ProcessManagerType {type Command <: C; type Error <: E},
   commandDistributor: ActorRef)(system: ActorSystem, managerCount: Int = 1000) {
   import processManagerType._
+  private val fullName = s"$contextName/ProcessManager/$name/Manager"
 
   /** Message that starts a process if it is not already started. */
   case class ProcessInitationMessage(process: Id, event: EventData, ack: Any)
@@ -30,7 +31,7 @@ class ProcessManagerActor[C, E](contextName: String, val processManagerType: Pro
   /** Handles EventData messages and starts process instances as needed. */
   val initiator = {
     val i = new ProcessInitator(processManagerType, initiatorMessage)
-    val name = URLEncoder.encode(s"$regionName/Initiator", "UTF-8")
+    val name = URLEncoder.encode(s"$fullName/Initiator", "UTF-8")
     system.actorOf(i.props(ref), name)
   }
 
@@ -49,9 +50,8 @@ class ProcessManagerActor[C, E](contextName: String, val processManagerType: Pro
   private def initiatorMessage(id: Id, event: EventData, ack: Any) =
     ProcessInitationMessage(id, event, ack)
 
-  private val regionName = s"$contextName/ProcessManager/$name/Manager"
   private val region = {
-    ClusterSharding(system).start(regionName, Some(Props(new ManagerActor)), idExtractor, shardResolver)
+    ClusterSharding(system).start(fullName, Some(Props(new ManagerActor)), idExtractor, shardResolver)
   }
 
   private val instance = new ProcessManagerInstance(contextName, processManagerType, commandDistributor)
