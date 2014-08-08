@@ -42,7 +42,7 @@ object Schuldner extends AggregateType {
 
   case class FakturaGruppeId(id: Guid)
   case class FakturaGruppe(id: FakturaGruppeId, person: Person, register: Register, steuerjahr: Jahr)
-    extends Entity
+    extends Entity[FakturaGruppeId]
 
   protected def types = typeInfo
   def seed(id: Id) = Schuldner(id, Map.empty)
