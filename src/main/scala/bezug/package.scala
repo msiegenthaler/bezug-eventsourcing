@@ -1,13 +1,12 @@
 package object bezug {
-  class Institution
 
   case class Betrag(value: BigDecimal)
+  class Datum
+  class Jahr
 
   case class Kategorie(name: String)
 
-  class Person
+  case class Person(id: String)
+  case class Institution(id: String)
 
-  class Jahr
-
-  class Datum
 }

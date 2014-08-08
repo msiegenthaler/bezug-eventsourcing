@@ -1,24 +1,26 @@
 package bezug
 package fakturierung
 
-import ch.eventsourced.api.Entity
-import ch.eventsourced.support.{Guid, GuidAggregateType}
-import bezug.debitor.InkassoKey
+import ch.eventsourced.api.{AggregateType, Entity}
+import ch.eventsourced.support.Guid
 
-object Schuldner extends GuidAggregateType {
+object Schuldner extends AggregateType {
   def name = "Schuldner"
+
+  case class Id(value: String)
+  def serializeId(id: Id) = id.value
+  def parseId(serialized: String) = Some(Id(serialized))
 
   sealed trait Command {
     def schuldner: Id
   }
   case class FakturaHinzufügen(faktura: Faktura.Id, person: Person, register: Register, steuerjahr: Jahr) extends Command {
-    def schuldner = Id(???) //person.id
+    def schuldner = Id(person.id)
   }
   def aggregateIdForCommand(command: Command) = Some(command.schuldner)
 
   sealed trait Event
-  //TODO FakturaGruppe..
-  case class FakturaHinzugefügt(zu: InkassoKey, faktura: Faktura.Id) extends Event
+  case class FakturaHinzugefügt(zu: FakturaGruppe, fakturaGruppe: Faktura.Id) extends Event
 
   sealed trait Error
 
@@ -26,7 +28,8 @@ object Schuldner extends GuidAggregateType {
   case class Schuldner(id: Id, fakturen: Map[FakturaGruppe, Seq[Faktura.Id]]) extends RootBase {
     def execute(c: Command) = c match {
       case c: FakturaHinzufügen =>
-        val key = InkassoKey(c.person, c.register, c.steuerjahr, fakturen.size + 1)
+        val id = FakturaGruppeId(Guid.generate)
+        val key = FakturaGruppe(id, c.person, c.register, c.steuerjahr)
         //TODO logik wann neuer key und wann added
         FakturaHinzugefügt(key, c.faktura)
     }
