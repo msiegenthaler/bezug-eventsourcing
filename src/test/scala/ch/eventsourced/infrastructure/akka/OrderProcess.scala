@@ -4,7 +4,7 @@ package ch.eventsourced.infrastructure.akka
 import ch.eventsourced.api.ProcessManager.{Unsubscribe, Subscribe}
 import ch.eventsourced.support.GuidProcessManagerType
 
-class OrderProcess extends GuidProcessManagerType {
+object OrderProcess extends GuidProcessManagerType {
   def name = "OrderProcess"
 
   type Command = Any

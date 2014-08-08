@@ -3,7 +3,7 @@ package ch.eventsourced.infrastructure.akka
 import ch.eventsourced.infrastructure.akka.counter.Incremented
 import ch.eventsourced.support.GuidProcessManagerType
 
-class CounterProcessManager extends GuidProcessManagerType {
+object CounterProcessManager extends GuidProcessManagerType {
   def name = "Counter"
 
   type Command = PairThem
