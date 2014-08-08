@@ -12,14 +12,13 @@ import ch.eventsourced.infrastructure.akka.AggregateManager._
  * - Subscribe/unsubscribe to/from aggregate events
  */
 class ProcessManagerInstance[I, C, E](contextName: String,
-  val processManagerType: ProcessManagerType {type Id = I; type Command <: C; type Error <: E},
-  commandDistributor: ActorRef) {
+  val processManagerType: ProcessManagerType {type Id = I; type Command <: C; type Error <: E}) {
   import processManagerType._
 
   case class InitiateProcess(event: EventData, ack: Any)
   case class ProcessCompleted(id: Id)
 
-  def props(id: Id): Props = Props(new Process(id))
+  def props(id: Id, commandDistributor: ActorRef): Props = Props(new Process(id, commandDistributor))
 
 
   /**
@@ -29,7 +28,7 @@ class ProcessManagerInstance[I, C, E](contextName: String,
    * - The commands are persistent, because we don't want to send out commands from a new impl when replaying
    * - process is done only if it has no active subscriptions and no pending commands
    */
-  private class Process(id: Id) extends PersistentActor with ActorLogging {
+  private class Process(id: Id, commandDistributor: ActorRef) extends PersistentActor with ActorLogging {
     def persistenceId = s"$contextName/ProcessManager/$name/Instance/$id"
     val commandTarget = context actorOf OrderPreservingAck.props(commandDistributor) {
       case Execute(_, ok, fail) => msg => msg == ok || msg == fail

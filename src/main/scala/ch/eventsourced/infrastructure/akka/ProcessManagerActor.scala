@@ -54,7 +54,7 @@ class ProcessManagerActor[C, E](contextName: String, val processManagerType: Pro
     ClusterSharding(system).start(fullName, Some(Props(new ManagerActor)), idExtractor, shardResolver)
   }
 
-  private val instance = new ProcessManagerInstance(contextName, processManagerType, commandDistributor)
+  private val instance = new ProcessManagerInstance(contextName, processManagerType)
 
 
   private class ManagerActor extends PersistentActor {
@@ -96,7 +96,7 @@ class ProcessManagerActor[C, E](contextName: String, val processManagerType: Pro
     private var processesToStart = Set.empty[Id]
 
     def startProcess(id: Id): ActorRef = {
-      val ref = context actorOf instance.props(id)
+      val ref = context actorOf instance.props(id, commandDistributor)
       runningProcesses += id -> ref
       ref
     }
