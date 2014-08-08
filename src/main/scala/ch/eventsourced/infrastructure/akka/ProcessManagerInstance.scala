@@ -16,7 +16,7 @@ class ProcessManagerInstance[I, C, E](contextName: String,
   commandDistributor: ActorRef) {
   import processManagerType._
 
-  case class InitiateProcess(process: Id, event: EventData, ack: Any)
+  case class InitiateProcess(event: EventData, ack: Any)
   case class ProcessCompleted(id: Id)
 
   def props(id: Id): Props = Props(new Process(id))
@@ -45,7 +45,7 @@ class ProcessManagerInstance[I, C, E](contextName: String,
 
     //Live messages
     def receiveCommand = {
-      case InitiateProcess(`id`, event, ack) =>
+      case InitiateProcess(event, ack) =>
         persist(Started(event.aggregateKey, event.sequence)) { e =>
           addSubscription(e.from, event.sequence)
           sender() ! ack

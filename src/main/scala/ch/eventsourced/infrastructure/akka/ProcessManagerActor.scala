@@ -69,7 +69,7 @@ class ProcessManagerActor[C, E](contextName: String, val processManagerType: Pro
       case ProcessInitationMessage(id, event, ack)
         if !runningProcesses.contains(id) && !terminatedProcesses.contains(id) =>
         val pia = ProcessInitAck(id, sender(), ack)
-        startProcess(id) ! instance.InitiateProcess(id, event, pia)
+        startProcess(id) ! instance.InitiateProcess(event, pia)
 
       case ProcessInitAck(id, origin, ack) =>
         persist(ProcessStarted(id)) { e =>
