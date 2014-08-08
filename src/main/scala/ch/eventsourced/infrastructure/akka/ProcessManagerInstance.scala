@@ -47,9 +47,9 @@ class ProcessManagerInstance[I, C, E](contextName: String,
       case InitiateProcess(event, ack) =>
         persist(Started(event.aggregateKey, event.sequence)) { e =>
           addSubscription(e.from, event.sequence)
+          //subscription will send us the event again
           sender() ! ack
         }
-        receiveCommand(event) //handle the initiating event
 
       case CommandAck(cmdId) =>
         commandConfirmed(cmdId)
