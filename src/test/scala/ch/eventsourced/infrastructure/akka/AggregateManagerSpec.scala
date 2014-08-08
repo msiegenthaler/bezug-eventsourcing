@@ -7,7 +7,7 @@ import ch.eventsourced.api.EventData
 import ch.eventsourced.infrastructure.akka.counter.Kill
 import ch.eventsourced.infrastructure.akka.AggregateManager._
 
-class AggregateActorSpec() extends AbstractSpec() {
+class AggregateManagerSpec() extends AbstractSpec() {
   val eventHandler = TestProbe()
   val manager = {
     val subs = Map("testProbe" -> eventHandler.ref)
@@ -30,7 +30,7 @@ class AggregateActorSpec() extends AbstractSpec() {
 
   def killManager(id: counter.Id) = manager.ref ! Execute(Kill(id), (), (_: counter.Error) => ())
 
-  "aggregate actor" must {
+  "aggregate manager" must {
     import counter._
 
     "create a new aggregate root for never used id" in {
