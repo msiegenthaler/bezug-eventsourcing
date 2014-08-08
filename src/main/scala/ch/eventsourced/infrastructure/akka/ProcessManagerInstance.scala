@@ -76,13 +76,11 @@ class ProcessManagerInstance[I, C, E](contextName: String,
             }
             persist(event)(_ => sender() ! ack)
 
-          case Completed(cmds) if cmds.isEmpty =>
+          case Completed(cmds) =>
+            log.debug(s"process execution completed, unsubscribing from ${activeSubscriptions.size} aggregates")
             done = true
             cmds.foreach(emitCommand)
-            persist(event)(_ => sender() ! ack)
-
-          case Completed(_) =>
-            done = true
+            activeSubscriptions.foreach(s => removeSubscription(s._1, s._2))
             persist(event)(_ => sender() ! ack)
             terminateIfDone()
         }
@@ -182,6 +180,7 @@ class ProcessManagerInstance[I, C, E](contextName: String,
         persist(ProcessCompleted)(_ => completeProcess())
     }
     def completeProcess() = {
+      log.debug("process is completed")
       //we don't ack this message because it will be just sent again if the process is waken up again
       context.parent ! ProcessCompleted(id)
       context stop self

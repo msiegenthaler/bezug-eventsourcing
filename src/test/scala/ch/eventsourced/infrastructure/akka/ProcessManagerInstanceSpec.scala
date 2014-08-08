@@ -4,6 +4,7 @@ import akka.actor.ActorRef
 import akka.testkit.TestProbe
 import ch.eventsourced.api.{AggregateKey, EventData}
 import ch.eventsourced.infrastructure.akka.AggregateManager.{UnsubscribeFromAggregate, Execute, AggregateEvent, SubscribeToAggregate}
+import ch.eventsourced.infrastructure.akka.Payment.PaymentConfirmed
 import ch.eventsourced.support.Guid
 
 class ProcessManagerInstanceSpec extends AbstractSpec {
@@ -48,7 +49,6 @@ class ProcessManagerInstanceSpec extends AbstractSpec {
   }
 
   "processManager instance" must {
-
     "handle an initiation event" in {
       val o = new TestOrder
       val commandProbe = TestProbe()
@@ -64,10 +64,37 @@ class ProcessManagerInstanceSpec extends AbstractSpec {
       pmi ! orderPmi.InitiateProcess(o.placed, "ack1")
       expectMsg("ack1")
       val (_, ack) = commandProbe.expectSubscribe(o.key, o.placed.sequence)
-      pmi ! ack
+      commandProbe.reply(ack)
     }
 
     "execute the actions returned by the process manager" in {
+      val o = new TestOrder
+      val commandProbe = TestProbe()
+      val pmi = startPmi(o.id, commandProbe.ref)
+      pmi ! orderPmi.InitiateProcess(o.placed, "ack1")
+      expectMsg("ack1")
+      val (orderSubscription, a1) = commandProbe.expectSubscribe(o.key, o.placed.sequence)
+      commandProbe.reply(a1)
+
+      pmi ! AggregateEvent(orderSubscription, o.placed, "ack2")
+      expectMsg("ack2")
+
+      //Subscribe to payment (earlier than Request, but no problem)
+      val (_, a2, paymentKey) = commandProbe.expectSubscribe()
+      commandProbe.reply(a2)
+      //Unsubscribe from order
+      val a3 = commandProbe.expectUnsubscribe(orderSubscription, o.key)
+      commandProbe.reply(a3)
+      //Request payment
+      val (a4, _, paymentKey2) = commandProbe.expectCommand {
+        case Payment.RequestPayment(100, "test-bill", id) => id
+      }
+      commandProbe.reply(a4)
+      assert(paymentKey.aggregateType == Payment)
+      assert(paymentKey.id === paymentKey2)
+    }
+
+    "unsubscribe from all when done" in {
       val o = new TestOrder
       val commandProbe = TestProbe()
       val pmi = startPmi(o.id, commandProbe.ref)
@@ -80,18 +107,33 @@ class ProcessManagerInstanceSpec extends AbstractSpec {
       expectMsg("ack2")
 
       //Subscribe to payment (earlier than Request, but no problem)
-      val (_, a2, paymentKey) = commandProbe.expectSubscribe()
-      pmi ! a2
+      val (paymentSubscription, a2, paymentKey) = commandProbe.expectSubscribe()
+      commandProbe.reply(a2)
       //Unsubscribe from order
       val a3 = commandProbe.expectUnsubscribe(orderSubscription, o.key)
-      pmi ! a3
+      commandProbe.reply(a3)
       //Request payment
       val (a4, _, paymentKey2) = commandProbe.expectCommand {
         case Payment.RequestPayment(100, "test-bill", id) => id
       }
-      pmi ! a4
+      commandProbe.reply(a4)
       assert(paymentKey.aggregateType == Payment)
       assert(paymentKey.id === paymentKey2)
+
+      pmi ! AggregateEvent(paymentSubscription, Payment.EventData(paymentKey2, 1, PaymentConfirmed), "ack3")
+      expectMsg("ack3")
+
+      //Unsubscribe from payment
+      val a5 = commandProbe.expectUnsubscribe(paymentSubscription, paymentKey)
+      commandProbe.reply(a5)
+      //Complete order
+      val (a6, _, orderId2) = commandProbe.expectCommand {
+        case Order.CompleteOrder(id) => id
+      }
+      commandProbe.reply(a6)
+      assert(orderId2 === o.id)
+
+      commandProbe.expectNoMsg()
     }
 
   }
