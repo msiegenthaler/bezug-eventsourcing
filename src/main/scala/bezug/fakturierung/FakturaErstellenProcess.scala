@@ -22,5 +22,6 @@ object FakturaErstellenProcess extends GuidProcessManagerType {
       case Faktura.EventData(id, _, FakturaKopfErstellt(kopf)) =>
         Completed() + Schuldner.FakturaHinzufügen(id, kopf.person, kopf.register, kopf.steuerjahr)
     }
+    def applyTransition = PartialFunction.empty
   }
 }

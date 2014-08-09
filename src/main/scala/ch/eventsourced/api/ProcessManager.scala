@@ -1,5 +1,6 @@
 package ch.eventsourced.api
 
+import scala.language.implicitConversions
 import ProcessManager._
 
 /**
@@ -11,9 +12,10 @@ import ProcessManager._
  * in sequence, event ordering between aggregates is arbitrary, but is stable (does not change when the process manager
  * is loaded from the store).
  */
-trait ProcessManager[Self <: ProcessManager[Self, Id, Command, Next], Id, Command, Next] {
+trait ProcessManager[Self <: ProcessManager[Self, Id, Command, Next, Transition], Id, Command, Next, Transition] {
   def id: Id
   def handle: PartialFunction[EventData, Next]
+  def applyTransition: PartialFunction[Transition, (Self, Seq[SubscriptionAction])]
 }
 object ProcessManager {
   case object Completed
@@ -29,18 +31,25 @@ trait ProcessManagerType {
   type Id
   type Command
   type Error
-  type Manager <: ProcessManager[Manager, Id, Command, Next]
-  trait BaseManager extends ProcessManager[Manager, Id, Command, Next]
+  type Transition
+  type Manager <: ProcessManager[Manager, Id, Command, Next, Transition]
+  protected trait BaseManager extends ProcessManager[Manager, Id, Command, Next, Transition] {
+    protected implicit def noSubscriptionAction(m: Manager): (Manager, Seq[SubscriptionAction]) = (m, Nil)
+    protected implicit class RichManager(m: Manager) {
+      def +(s: SubscriptionAction): (Manager, Seq[SubscriptionAction]) = (m, Seq(s))
+    }
+    protected implicit class RichResult(x: (Manager, Seq[SubscriptionAction])) {
+      def +(s: SubscriptionAction): (Manager, Seq[SubscriptionAction]) = (x._1, x._2 :+ s)
+    }
+  }
 
   sealed trait Next
   case class Completed(commands: Seq[Command] = Seq.empty) extends Next {
     def +(cmd: Command) = copy(commands = commands :+ cmd)
   }
-  case class Continue(state: Manager,
-    commands: Seq[Command] = Seq.empty,
-    subscriptionActions: Seq[SubscriptionAction] = Seq.empty) extends Next {
+  case class Continue(transition: Transition,
+    commands: Seq[Command] = Seq.empty) extends Next {
     def +(cmd: Command) = copy(commands = commands :+ cmd)
-    def +(action: SubscriptionAction) = copy(subscriptionActions = subscriptionActions :+ action)
   }
 
 
