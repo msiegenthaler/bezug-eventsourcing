@@ -58,32 +58,31 @@ class ProcessManagerInstance[I, C, E](contextName: String,
         commandConfirmed(cmdId)
 
       case s@SubscriptionAdded(id, to) =>
-        persist(s) { _ => activeSubscriptions += id -> to}
+        persist(s) { _ => ()}
 
       case s@SubscriptionRemoved(id) =>
-        activeSubscriptions -= id
         persist(s) { _ => ()}
         terminateIfDone()
 
       case AggregateEvent(subId, event, ack) if !done && activeSubscriptions.contains(subId) =>
-        state.handle.lift(event).foreach {
-          case Continue(next, cmds, subscriptionActions) =>
-            state = next
+        state.handle.lift(event).map {
+          case Continue(transition, cmds) =>
             cmds.foreach(emitCommand)
-            subscriptionActions foreach {
-              case ProcessManager.Subscribe(to) => addSubscription(to, 0)
-              case ProcessManager.Unsubscribe(from) => removeSubscription(from)
+            persist(StateTransition(transition)) { t =>
+              handleTransition(t)
+              sender() ! ack
             }
-            persist(event)(_ => sender() ! ack)
 
           case Completed(cmds) =>
             log.debug(s"process execution completed, unsubscribing from ${activeSubscriptions.size} aggregates")
             done = true
             cmds.foreach(emitCommand)
-            activeSubscriptions.foreach(s => removeSubscription(s._1, s._2))
-            persist(event)(_ => sender() ! ack)
-            terminateIfDone()
-        }
+            persist(CompletionStarted) { c =>
+              activeSubscriptions.foreach(s => removeSubscription(s._1, s._2))
+              terminateIfDone()
+              sender() ! ack
+            }
+        }.getOrElse(sender() ! ack)
 
       case AggregateEvent(subId, event, ack) if !activeSubscriptions.contains(subId) =>
         //unrequested event, try to remove the subscription
@@ -95,20 +94,21 @@ class ProcessManagerInstance[I, C, E](contextName: String,
       case Started(from, seq) =>
         expectedSubscriptionsAfterRecovery += from -> seq
 
-      case event: EventData if !done =>
-        state.handle.lift(event) foreach {
-          case Completed(_) =>
-            done = true
-            expectedSubscriptionsAfterRecovery = Map.empty
-          case Continue(next, _, subscriptionActions) =>
-            state = next
-            subscriptionActions foreach {
-              case ProcessManager.Subscribe(to) =>
-                expectedSubscriptionsAfterRecovery += to -> 0L
-              case ProcessManager.Unsubscribe(from) =>
-                expectedSubscriptionsAfterRecovery -= from
-            }
+      case StateTransition(transition) if !done =>
+        val (newState, subscriptionActions) = state.applyTransition.lift(transition).
+          getOrElse(throw new IllegalStateException(s"Transition $transition not expected in state $state"))
+        state = newState
+        subscriptionActions foreach {
+          case ProcessManager.Subscribe(to) =>
+            expectedSubscriptionsAfterRecovery += to -> 0L
+          case ProcessManager.Unsubscribe(from) =>
+            expectedSubscriptionsAfterRecovery -= from
         }
+
+      case CompletionStarted =>
+        done = true
+        expectedSubscriptionsAfterRecovery = Map.empty
+        ()
 
       case SubscriptionAdded(id, to) => activeSubscriptions += id -> to
       case SubscriptionRemoved(id) => activeSubscriptions -= id
@@ -125,16 +125,17 @@ class ProcessManagerInstance[I, C, E](contextName: String,
       case RecoveryCompleted =>
         log.debug(s"Loaded from event store")
 
-        //Set up subscriptions
-        val pendingSubscribes = expectedSubscriptionsAfterRecovery -- activeSubscriptions.values
-        val pendingUnsubscribes = activeSubscriptions.filterNot(e => expectedSubscriptionsAfterRecovery.contains(e._2))
-        pendingSubscribes.foreach((addSubscription _).tupled)
-        pendingUnsubscribes.foreach(e => removeSubscription(e._1, e._2))
-        expectedSubscriptionsAfterRecovery = Map.empty
-
         //Resend unacknowledged commands
         commandsToResend.map(e => CommandEmitted(e._1, e._2)).foreach(sendCommand _)
         commandsToResend = Map.empty
+
+        //Set up subscriptions
+        val pendingSubscribes = expectedSubscriptionsAfterRecovery -- activeSubscriptions.values
+        val pendingUnsubscribes = activeSubscriptions
+          .filterNot(e => expectedSubscriptionsAfterRecovery.contains(e._2))
+        pendingSubscribes.foreach((addSubscription _).tupled)
+        pendingUnsubscribes.foreach(e => removeSubscription(e._1, e._2))
+        expectedSubscriptionsAfterRecovery = Map.empty
 
         terminateIfDone
     }
@@ -160,18 +161,29 @@ class ProcessManagerInstance[I, C, E](contextName: String,
     private var nextCommandId = 0L
     private var unconfirmedCommands = Set.empty[Long]
 
+    //Transition Handling
+    def handleTransition(transition: StateTransition) = {
+      val (newState, subscriptionActions) = state.applyTransition(transition.transition)
+      state = newState
+      subscriptionActions foreach {
+        case ProcessManager.Subscribe(to) => addSubscription(to, 0)
+        case ProcessManager.Unsubscribe(from) => removeSubscription(from)
+      }
+    }
 
     //Subscription handling
     def addSubscription(to: AggregateKey, fromSequence: Long) = {
       val subscriptionId = s"$persistenceId/${to.aggregateType}/${to.aggregateType.serializeId(to.id)}"
       val ack = SubscriptionAdded(subscriptionId, to)
-      commandDistributor ! SubscribeToAggregate(subscriptionId, to, context.self.path, fromSequence, ack)
+      activeSubscriptions += subscriptionId -> to
+      commandTarget ! SubscribeToAggregate(subscriptionId, to, context.self.path, fromSequence, ack)
     }
     def removeSubscription(to: AggregateKey): Unit = {
       activeSubscriptions.filter(_._2 == to).map(_._1).foreach(removeSubscription(_, to))
     }
     def removeSubscription(id: String, to: AggregateKey): Unit = {
-      commandDistributor ! UnsubscribeFromAggregate(id, to, SubscriptionRemoved(id))
+      activeSubscriptions -= id
+      commandTarget ! UnsubscribeFromAggregate(id, to, SubscriptionRemoved(id))
     }
 
     //Termination
@@ -187,12 +199,14 @@ class ProcessManagerInstance[I, C, E](contextName: String,
     }
   }
 
-  private sealed trait Event
-  private case class Started(from: AggregateKey, atSequence: Long) extends Event
-  private case class CommandEmitted(id: Long, command: C) extends Event
-  private case class CommandDelivered(id: Long) extends Event
-  private case class SubscriptionAdded(id: String, to: AggregateKey) extends Event
-  private case class SubscriptionRemoved(id: String) extends Event
+  private sealed trait PersitentEvent
+  private case class Started(from: AggregateKey, atSequence: Long) extends PersitentEvent
+  private case class CommandEmitted(id: Long, command: C) extends PersitentEvent
+  private case class CommandDelivered(id: Long) extends PersitentEvent
+  private case class StateTransition(transition: Transition) extends PersitentEvent
+  private case class SubscriptionAdded(id: String, to: AggregateKey) extends PersitentEvent
+  private case class SubscriptionRemoved(id: String) extends PersitentEvent
+  private case object CompletionStarted extends PersitentEvent
 
   private sealed trait CommandResponse {
     def id: Long

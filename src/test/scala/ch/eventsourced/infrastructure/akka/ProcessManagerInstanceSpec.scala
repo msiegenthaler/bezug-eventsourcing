@@ -27,22 +27,22 @@ class ProcessManagerInstanceSpec extends AbstractSpec {
 
   implicit class RichCommandProbe(t: TestProbe) {
     def expectSubscribe() = {
-      t.expectMsgPF() {
+      t.expectMsgPF(hint = s"subscribe starting at 0") {
         case SubscribeToAggregate(sid, to, _, 0, ack) => (sid, ack, to)
       }
     }
     def expectSubscribe(to: AggregateKey, from: Long) = {
-      t.expectMsgPF() {
+      t.expectMsgPF(hint = s"subscribe to $to starting at $from") {
         case SubscribeToAggregate(sid, `to`, _, `from`, ack) => (sid, ack)
       }
     }
     def expectUnsubscribe(sid: String, from: AggregateKey) = {
-      t.expectMsgPF() {
+      t.expectMsgPF(hint = s"unsubscribe $sid from $from") {
         case UnsubscribeFromAggregate(`sid`, `from`, ack) => ack
       }
     }
     def expectCommand[A](pf: PartialFunction[OrderProcess.Command, A]) = {
-      t.expectMsgPF() {
+      t.expectMsgPF(hint = s"command") {
         case Execute(cmd, ok, fail) if pf.isDefinedAt(cmd) => (ok, fail, pf(cmd))
       }
     }
@@ -73,23 +73,23 @@ class ProcessManagerInstanceSpec extends AbstractSpec {
       val pmi = startPmi(o.id, commandProbe.ref)
       pmi ! orderPmi.InitiateProcess(o.placed, "ack1")
       expectMsg("ack1")
-      val (orderSubscription, a1) = commandProbe.expectSubscribe(o.key, o.placed.sequence)
-      commandProbe.reply(a1)
+      val (orderSubscription, ackSubO) = commandProbe.expectSubscribe(o.key, o.placed.sequence)
+      commandProbe.reply(ackSubO)
 
       pmi ! AggregateEvent(orderSubscription, o.placed, "ack2")
       expectMsg("ack2")
 
-      //Subscribe to payment (earlier than Request, but no problem)
-      val (_, a2, paymentKey) = commandProbe.expectSubscribe()
-      commandProbe.reply(a2)
-      //Unsubscribe from order
-      val a3 = commandProbe.expectUnsubscribe(orderSubscription, o.key)
-      commandProbe.reply(a3)
       //Request payment
-      val (a4, _, paymentKey2) = commandProbe.expectCommand {
+      val (ackRequest, _, paymentKey2) = commandProbe.expectCommand {
         case Payment.RequestPayment(100, "test-bill", id) => id
       }
-      commandProbe.reply(a4)
+      commandProbe.reply(ackRequest)
+      //Subscribe to payment
+      val (_, ackSubP, paymentKey) = commandProbe.expectSubscribe()
+      commandProbe.reply(ackSubP)
+      //Unsubscribe from order
+      val ackUnsO = commandProbe.expectUnsubscribe(orderSubscription, o.key)
+      commandProbe.reply(ackUnsO)
       assert(paymentKey.aggregateType == Payment)
       assert(paymentKey.id === paymentKey2)
     }
@@ -100,127 +100,198 @@ class ProcessManagerInstanceSpec extends AbstractSpec {
       val pmi = startPmi(o.id, commandProbe.ref)
       pmi ! orderPmi.InitiateProcess(o.placed, "ack1")
       expectMsg("ack1")
-      val (orderSubscription, a1) = commandProbe.expectSubscribe(o.key, o.placed.sequence)
-      pmi ! a1
+      val (orderSubscription, ackSubO) = commandProbe.expectSubscribe(o.key, o.placed.sequence)
+      commandProbe.reply(ackSubO)
 
       pmi ! AggregateEvent(orderSubscription, o.placed, "ack2")
       expectMsg("ack2")
 
-      //Subscribe to payment (earlier than Request, but no problem)
-      val (paymentSubscription, a2, paymentKey) = commandProbe.expectSubscribe()
-      commandProbe.reply(a2)
-      //Unsubscribe from order
-      val a3 = commandProbe.expectUnsubscribe(orderSubscription, o.key)
-      commandProbe.reply(a3)
       //Request payment
-      val (a4, _, paymentKey2) = commandProbe.expectCommand {
+      val (ackReq, _, paymentKey2) = commandProbe.expectCommand {
         case Payment.RequestPayment(100, "test-bill", id) => id
       }
-      commandProbe.reply(a4)
+      commandProbe.reply(ackReq)
+      //Subscribe to payment
+      val (paymentSubscription, ackSubP, paymentKey) = commandProbe.expectSubscribe()
+      commandProbe.reply(ackSubP)
+      //Unsubscribe from order
+      val ackUnsO = commandProbe.expectUnsubscribe(orderSubscription, o.key)
+      commandProbe.reply(ackUnsO)
 
       pmi ! AggregateEvent(paymentSubscription, Payment.EventData(paymentKey2, 1, PaymentConfirmed), "ack3")
       expectMsg("ack3")
 
-      //Unsubscribe from payment
-      val a5 = commandProbe.expectUnsubscribe(paymentSubscription, paymentKey)
-      commandProbe.reply(a5)
       //Complete order
-      val (a6, _, orderId2) = commandProbe.expectCommand {
+      val (ackCompO, _, orderId2) = commandProbe.expectCommand {
         case Order.CompleteOrder(id) => id
       }
-      commandProbe.reply(a6)
+      commandProbe.reply(ackCompO)
+      //Unsubscribe from payment
+      val ackUnsP = commandProbe.expectUnsubscribe(paymentSubscription, paymentKey)
+      commandProbe.reply(ackUnsP)
       assert(orderId2 === o.id)
 
       commandProbe.expectNoMsg()
     }
 
-    "resends unconfirmed commands" in {
+    "resend unconfirmed commands" in {
       val o = new TestOrder
       val commandProbe = TestProbe()
       val pmi = startPmi(o.id, commandProbe.ref)
       pmi ! orderPmi.InitiateProcess(o.placed, "ack1")
       expectMsg("ack1")
-      val (orderSubscription, a1) = commandProbe.expectSubscribe(o.key, o.placed.sequence)
-      commandProbe.reply(a1)
+      val (orderSubscription, ackSubO) = commandProbe.expectSubscribe(o.key, o.placed.sequence)
+      commandProbe.reply(ackSubO)
 
       pmi ! AggregateEvent(orderSubscription, o.placed, "ack2")
       expectMsg("ack2")
 
-      //Subscribe to payment (earlier than Request, but no problem)
-      val (_, a2, paymentKey) = commandProbe.expectSubscribe()
-      commandProbe.reply(a2)
-      //Unsubscribe from order
-      val a3 = commandProbe.expectUnsubscribe(orderSubscription, o.key)
-      commandProbe.reply(a3)
       //Request payment
-      val (a4, _, paymentKey2) = commandProbe.expectCommand {
+      val (_, _, paymentKey2) = commandProbe.expectCommand {
         case Payment.RequestPayment(100, "test-bill", id) => id
       }
 
       Thread.sleep(1000)
-      val (a5, _, _) = commandProbe.expectCommand {
+      val (ackReq, _, _) = commandProbe.expectCommand {
         case Payment.RequestPayment(100, "test-bill", `paymentKey2`) => ()
       }
-      commandProbe.reply(a5)
-      commandProbe.expectNoMsg()
+      commandProbe.reply(ackReq)
+      //Subscribe to payment
+      val (_, ackSubP, paymentKey) = commandProbe.expectSubscribe()
+      commandProbe.reply(ackSubP)
+      //Unsubscribe from order
+      val ackUnsO = commandProbe.expectUnsubscribe(orderSubscription, o.key)
+      commandProbe.reply(ackUnsO)
     }
 
-    "resends unconfirmed commands after restart" in {
+    "resend unconfirmed commands after restart" in {
       val o = new TestOrder
       val commandProbe = TestProbe()
       val pmi = startPmi(o.id, commandProbe.ref)
       pmi ! orderPmi.InitiateProcess(o.placed, "ack1")
       expectMsg("ack1")
-      val (orderSubscription, a1) = commandProbe.expectSubscribe(o.key, o.placed.sequence)
-      commandProbe.reply(a1)
+      val (orderSubscription, ackSubO) = commandProbe.expectSubscribe(o.key, o.placed.sequence)
+      commandProbe.reply(ackSubO)
 
       pmi ! AggregateEvent(orderSubscription, o.placed, "ack2")
       expectMsg("ack2")
 
-      //Subscribe to payment (earlier than Request, but no problem)
-      val (_, a2, paymentKey) = commandProbe.expectSubscribe()
-      commandProbe.reply(a2)
-      //Unsubscribe from order
-      val a3 = commandProbe.expectUnsubscribe(orderSubscription, o.key)
-      commandProbe.reply(a3)
       //Request payment
-      val (a4, _, paymentKey2) = commandProbe.expectCommand {
+      val (_, _, paymentKey2) = commandProbe.expectCommand {
         case Payment.RequestPayment(100, "test-bill", id) => id
       }
+
+      Thread.sleep(500)
       pmi ! PoisonPill
 
       val commandProbe2 = TestProbe()
       val pmi2 = startPmi(o.id, commandProbe2.ref)
-      val (a5, _, _) = commandProbe.expectCommand {
-        case Payment.RequestPayment(100, "test-bill", `paymentKey`) => ()
+      val (ackReq, _, _) = commandProbe2.expectCommand {
+        case Payment.RequestPayment(100, "test-bill", `paymentKey2`) => ()
       }
-      commandProbe2.reply(a5)
-      commandProbe2.expectNoMsg()
+      commandProbe2.reply(ackReq)
+      //Subscribe to payment
+      val (_, ackSubP, paymentKey) = commandProbe2.expectSubscribe()
+      commandProbe2.reply(ackSubP)
+      //Unsubscribe from order
+      val ackUnsO = commandProbe2.expectUnsubscribe(orderSubscription, o.key)
+      commandProbe2.reply(ackUnsO)
     }
 
-    "does not resend confirmed commands after restart" in {
+    "resend unconfirmed subscribes after restart" in {
       val o = new TestOrder
       val commandProbe = TestProbe()
       val pmi = startPmi(o.id, commandProbe.ref)
       pmi ! orderPmi.InitiateProcess(o.placed, "ack1")
       expectMsg("ack1")
-      val (orderSubscription, a1) = commandProbe.expectSubscribe(o.key, o.placed.sequence)
-      commandProbe.reply(a1)
+      val (orderSubscription, ackSubO) = commandProbe.expectSubscribe(o.key, o.placed.sequence)
+      commandProbe.reply(ackSubO)
 
       pmi ! AggregateEvent(orderSubscription, o.placed, "ack2")
       expectMsg("ack2")
 
-      //Subscribe to payment (earlier than Request, but no problem)
-      val (_, a2, paymentKey) = commandProbe.expectSubscribe()
-      commandProbe.reply(a2)
-      //Unsubscribe from order
-      val a3 = commandProbe.expectUnsubscribe(orderSubscription, o.key)
-      commandProbe.reply(a3)
       //Request payment
-      val (a4, _, paymentKey2) = commandProbe.expectCommand {
+      //Request payment
+      val (ackReq, _, paymentKey2) = commandProbe.expectCommand {
         case Payment.RequestPayment(100, "test-bill", id) => id
       }
-      commandProbe.reply(a4)
+      commandProbe.reply(ackReq)
+      //Subscribe to payment
+      val (_, _, _) = commandProbe.expectSubscribe()
+
+      Thread.sleep(500)
+      pmi ! PoisonPill
+
+      val commandProbe2 = TestProbe()
+      val pmi2 = startPmi(o.id, commandProbe2.ref)
+      //Subscribe to payment
+      val (_, ackSubP, paymentKey) = commandProbe2.expectSubscribe()
+      assert(paymentKey.id == paymentKey2)
+      commandProbe2.reply(ackSubP)
+      //Unsubscribe from order
+      val ackUnsO = commandProbe2.expectUnsubscribe(orderSubscription, o.key)
+      commandProbe2.reply(ackUnsO)
+    }
+
+    "resend unconfirmed unsubscribes after restart" in {
+      val o = new TestOrder
+      val commandProbe = TestProbe()
+      val pmi = startPmi(o.id, commandProbe.ref)
+      pmi ! orderPmi.InitiateProcess(o.placed, "ack1")
+      expectMsg("ack1")
+      val (orderSubscription, ackSubO) = commandProbe.expectSubscribe(o.key, o.placed.sequence)
+      commandProbe.reply(ackSubO)
+
+      pmi ! AggregateEvent(orderSubscription, o.placed, "ack2")
+      expectMsg("ack2")
+
+      //Request payment
+      //Request payment
+      val (ackReq, _, paymentKey2) = commandProbe.expectCommand {
+        case Payment.RequestPayment(100, "test-bill", id) => id
+      }
+      commandProbe.reply(ackReq)
+      //Subscribe to payment
+      val (_, ackSubP, paymentKey) = commandProbe.expectSubscribe()
+      commandProbe.reply(ackSubP)
+      //Unsubscribe from order
+      commandProbe.expectUnsubscribe(orderSubscription, o.key)
+
+      Thread.sleep(500)
+      pmi ! PoisonPill
+
+      val commandProbe2 = TestProbe()
+      val pmi2 = startPmi(o.id, commandProbe2.ref)
+      //Unsubscribe from order
+      val ackUnsO = commandProbe2.expectUnsubscribe(orderSubscription, o.key)
+      commandProbe2.reply(ackUnsO)
+    }
+
+    "not resend confirmed commands/subs after restart" in {
+      val o = new TestOrder
+      val commandProbe = TestProbe()
+      val pmi = startPmi(o.id, commandProbe.ref)
+      pmi ! orderPmi.InitiateProcess(o.placed, "ack1")
+      expectMsg("ack1")
+      val (orderSubscription, ackSubO) = commandProbe.expectSubscribe(o.key, o.placed.sequence)
+      commandProbe.reply(ackSubO)
+
+      pmi ! AggregateEvent(orderSubscription, o.placed, "ack2")
+      expectMsg("ack2")
+
+      //Request payment
+      val (ackReq, _, paymentKey2) = commandProbe.expectCommand {
+        case Payment.RequestPayment(100, "test-bill", id) => id
+      }
+      commandProbe.reply(ackReq)
+      //Subscribe to payment
+      val (_, ackSubP, paymentKey) = commandProbe.expectSubscribe()
+      commandProbe.reply(ackSubP)
+      //Unsubscribe from order
+      val ackUnsP = commandProbe.expectUnsubscribe(orderSubscription, o.key)
+      commandProbe.reply(ackUnsP)
+
+      Thread.sleep(500)
       pmi ! PoisonPill
 
       val commandProbe2 = TestProbe()
@@ -228,5 +299,4 @@ class ProcessManagerInstanceSpec extends AbstractSpec {
       commandProbe2.expectNoMsg()
     }
   }
-
 }
