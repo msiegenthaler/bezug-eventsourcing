@@ -14,6 +14,16 @@ sealed trait CompositeIdentifier {
 }
 
 object CompositeIdentifier {
+  def apply(value: String) = CompositeIdentifier.root / value
+  def unapplySeq(identifier: CompositeIdentifier): Option[Seq[String]] = Some(identifier.serializedParts)
+  def unapplySeq(value: String): Option[Seq[String]] = parse(value).flatMap(unapplySeq)
+
+  val root: CompositeIdentifier = new CompositeIdentifier {
+    def serializedParts = Nil
+    def /(part: String) = CompositeIdentifierCons(this, part)
+    def parent = this
+  }
+
   def parse(value: String): Option[CompositeIdentifier] = {
     if (value.isEmpty || !value.startsWith(separator)) None
     else Try {
@@ -26,14 +36,6 @@ object CompositeIdentifier {
 
   private val separator = "/"
   private val charset = "UTF-8"
-
-  val root: CompositeIdentifier = new CompositeIdentifier {
-    def serializedParts = Nil
-    def /(part: String) = CompositeIdentifierCons(this, part)
-    def parent = this
-  }
-
-
   private case class CompositeIdentifierCons(parent: CompositeIdentifier, part: String) extends CompositeIdentifier {
     def /(part: String) = CompositeIdentifierCons(this, part)
     def serializedParts = parent.serializedParts :+ URLEncoder.encode(part, charset)

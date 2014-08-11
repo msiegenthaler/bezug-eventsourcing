@@ -47,5 +47,21 @@ class CompositeIdentifierSpec extends WordSpecLike with Matchers {
       assert(CompositeIdentifier.parse("asasd") === None)
       assert(CompositeIdentifier.parse("\\asasd") === None)
     }
+
+    "unapply from composite identifier" in {
+      id1 match {
+        case CompositeIdentifier("aggregate", b) => assert(b === "123")
+      }
+      id1 match {
+        case CompositeIdentifier(a, b) =>
+          assert(a === "aggregate")
+          assert(b === "123")
+      }
+    }
+    "unapply from string" in {
+      id1.serialize match {
+        case CompositeIdentifier("aggregate", b) => assert(b === "123")
+      }
+    }
   }
 }
