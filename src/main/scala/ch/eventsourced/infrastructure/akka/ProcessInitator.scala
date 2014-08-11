@@ -2,7 +2,7 @@ package ch.eventsourced.infrastructure.akka
 
 import akka.actor.{ActorRef, Actor, Props}
 import ch.eventsourced.api.{EventData, ProcessManagerType}
-import ch.eventsourced.infrastructure.akka.AggregateManager.AggregateEvent
+import ch.eventsourced.infrastructure.akka.AggregateActor.AggregateEvent
 
 /**
  * Responsible to start a process manager instance if an event triggers it.

@@ -2,7 +2,7 @@ package ch.eventsourced.infrastructure.akka
 
 import akka.actor.{ActorRef, Actor, Props}
 import ch.eventsourced.api.AggregateType
-import ch.eventsourced.infrastructure.akka.AggregateManager.AggregateEvent
+import ch.eventsourced.infrastructure.akka.AggregateActor.AggregateEvent
 import pubsub.Producer.Publish
 import pubsub.Topic
 

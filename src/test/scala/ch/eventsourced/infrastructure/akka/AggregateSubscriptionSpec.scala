@@ -5,7 +5,7 @@ import scala.concurrent.duration._
 import akka.actor.{PoisonPill, Actor, Props}
 import akka.testkit.TestProbe
 import ch.eventsourced.api.EventData
-import ch.eventsourced.infrastructure.akka.AggregateManager.{AggregateEvent, SubscriptionId}
+import ch.eventsourced.infrastructure.akka.AggregateActor.{AggregateEvent, SubscriptionId}
 import ch.eventsourced.infrastructure.akka.AggregateSubscription.{OnEvent, Start}
 import ch.eventsourced.infrastructure.akka.counter.{Incremented, Initialize}
 

@@ -6,7 +6,7 @@ import akka.contrib.pattern.ClusterSharding
 import akka.contrib.pattern.ShardRegion._
 import akka.persistence.{RecoveryCompleted, PersistentActor}
 import ch.eventsourced.api.{EventData, ProcessManagerType}
-import ch.eventsourced.infrastructure.akka.AggregateManager.AggregateEvent
+import ch.eventsourced.infrastructure.akka.AggregateActor.AggregateEvent
 
 /**
  * Handles the running instances of a process manager type.

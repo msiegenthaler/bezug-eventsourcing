@@ -3,7 +3,7 @@ package ch.eventsourced.infrastructure.akka
 import akka.actor.Props
 import akka.persistence.PersistentView
 import ch.eventsourced.api.AggregateType
-import ch.eventsourced.infrastructure.akka.AggregateManager.EventEmitted
+import ch.eventsourced.infrastructure.akka.AggregateActor.EventEmitted
 import ch.eventsourced.support.Guid
 
 /** Sends all events from the actors journal in the boundary as EventData messages to its parent. */

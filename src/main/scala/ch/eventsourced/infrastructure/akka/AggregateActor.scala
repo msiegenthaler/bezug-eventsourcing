@@ -3,18 +3,16 @@ package ch.eventsourced.infrastructure.akka
 import scala.collection.immutable.Queue
 import scala.concurrent.duration._
 import akka.actor._
-import akka.contrib.pattern.ClusterSharding
-import akka.contrib.pattern.ShardRegion._
-import akka.persistence.{PersistentActor, RecoveryCompleted}
+import akka.contrib.pattern.ShardRegion.Passivate
+import akka.persistence.RecoveryCompleted
 import scalaz._
-import ch.eventsourced.api.{AggregateKey, EventData, AggregateType}
+import ch.eventsourced.api.{EventData, AggregateKey, AggregateType}
 import ch.eventsourced.support.CompositeIdentifier
-import ch.eventsourced.infrastructure.akka.AggregateSubscriptionManager.{Start, AddManualSubscription}
 import ch.eventsourced.infrastructure.akka.AggregateSubscription.OnEvent
-import AggregateManager._
+import ch.eventsourced.infrastructure.akka.AggregateSubscriptionManager.{Start, AddManualSubscription}
+import ch.eventsourced.infrastructure.akka.AggregateActor._
 
-
-object AggregateManager {
+object AggregateActor {
   sealed trait Command
   sealed trait Event
   /** Execute the command and the reply with onSuccess or onFailed to the sender of the message. */
@@ -42,7 +40,7 @@ object AggregateManager {
 
 /**
  * Runs an aggregate type as an akka actor.
- * The individual aggregate roots are distributed across the cluster using cluster sharding. Akka persistence
+ * The individual aggregate roots can be distributed across the cluster using cluster sharding. Akka persistence
  * is used for persistence of the events. All persisted events are sent to the event handler as OnEvent
  * messages. This messages must be acknowledged.
  *
@@ -56,42 +54,29 @@ object AggregateManager {
  * When an aggregate has not received commands for some time it is removed from memory. At the next command
  * it is again constructed from the persistent events in the event store. This is transparent to the user.
  */
-class AggregateManager[I, C, E](contextName: String,
+class AggregateActor[I, C, E](contextName: String,
   val aggregateType: AggregateType {type Id = I; type Command = C; type Error = E},
   eventSubscriptions: Map[SubscriptionId, ActorRef])
-  (system: ActorSystem, shardCount: Int = 100, inMemoryTimeout: Duration = 5.minutes) {
+  (system: ActorSystem, shardCount: Int = 100, inMemoryTimeout: Duration = 5.minutes) extends ShardedActor[I] {
   import aggregateType._
 
-  /** Execute the command and the reply with onSuccess or onFailed to the sender of the message. */
-  type Execute = AggregateManager.Execute[Command, Error]
+  def name = CompositeIdentifier(contextName) / "aggregate" / aggregateType.name
+  def serializeId(id: I) = aggregateType.serializeId(id)
+  def parseId(value: String) = aggregateType.parseId(value)
 
-  /** Handles Command messages. */
-  def ref: ActorRef = region
-
-
-  private val idExtractor: IdExtractor = {
-    case msg@Execute(Command(id, cmd), suc, fail) => (serializeId(id), msg)
-    case msg@SubscribeToAggregate(_, AggregateKey(id), _, _, _) => (serializeId(id), msg)
-    case msg@UnsubscribeFromAggregate(_, AggregateKey(id), _) => (serializeId(id), msg)
+  def messageSelector = {
+    case Execute(Command(id, cmd), suc, fail) => id
+    case SubscribeToAggregate(_, AggregateKey(id), _, _, _) => id
+    case UnsubscribeFromAggregate(_, AggregateKey(id), _) => id
   }
-  private val shardResolver: ShardResolver =
-    idExtractor.andThen(_._1.hashCode % shardCount).andThen(_.toString)
-
-  private val regionName = s"$contextName-aggregate-$name"
-  private val region = {
-    ClusterSharding(system).start(regionName, Some(Props(new AggregateRootActor)), idExtractor, shardResolver)
-  }
+  def props = Props(new AggregateInstance)
 
   private val journalReplay = new AggregateJournalReplay(aggregateType)
+  private case class EventDelivered(id: Long) extends JournalEvent
+  private case class EventAck(id: Long) extends JournalEvent
+  private case object PassivateAggregateRoot
 
-  //TODO command deduplication
-  private class AggregateRootActor extends PersistentActor with ActorLogging {
-    override val persistenceId = s"$contextName/Aggregate/$name/${self.path.name}"
-    private val id = {
-      parseId(self.path.name)
-        .getOrElse(throw new IllegalArgumentException(s"$persistenceId is not a valid id for aggregate $name"))
-    }
-
+  private class AggregateInstance extends ActorBase with ActorLogging {
     private var eventSeq: Long = 0
     private var state = seed(id)
 
@@ -191,8 +176,4 @@ class AggregateManager[I, C, E](contextName: String,
       toSendOnRecovery = Queue.empty
     }
   }
-
-  private case class EventDelivered(id: Long) extends JournalEvent
-  private case class EventAck(id: Long) extends JournalEvent
-  private case object PassivateAggregateRoot
 }

@@ -3,7 +3,7 @@ package ch.eventsourced.infrastructure.akka
 import akka.actor.{ActorLogging, Props, ActorRef}
 import akka.persistence.{RecoveryCompleted, PersistentActor}
 import ch.eventsourced.api._
-import ch.eventsourced.infrastructure.akka.AggregateManager._
+import ch.eventsourced.infrastructure.akka.AggregateActor._
 import ch.eventsourced.support.CompositeIdentifier
 
 /**

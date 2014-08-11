@@ -7,7 +7,7 @@ import scala.concurrent.ExecutionContext.Implicits.global
 import akka.actor._
 import akka.persistence.{RecoveryCompleted, PersistentActor}
 import akka.pattern.ask
-import ch.eventsourced.infrastructure.akka.AggregateManager.{UnsubscribeFromAggregate, SubscribeToAggregate, SubscriptionId}
+import ch.eventsourced.infrastructure.akka.AggregateActor.{UnsubscribeFromAggregate, SubscribeToAggregate, SubscriptionId}
 import ch.eventsourced.infrastructure.akka.AggregateSubscription.{OnEvent, Close}
 
 /**

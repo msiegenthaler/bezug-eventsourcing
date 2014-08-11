@@ -36,13 +36,15 @@ class ContextActor(val definition: BoundedContextBackendType, pubSub: ActorRef, 
     val subscriptions = Map(CompositeIdentifier("pubSub") -> publisher) ++
       inititorsFor(aggregateType)
 
-    new AggregateManager(definition.name, aggregateType, subscriptions)(context.system,
+    val aa = new AggregateActor(definition.name, aggregateType, subscriptions)(context.system,
       shardCount = config.shardCount, inMemoryTimeout = config.aggregateTimeout)
+    val actor: ActorRef = ??? // TODO start with sharding
+    (aa, actor)
   }
 
   val commandDistributor: ActorRef = {
     //TODO the unknown error.. from the definition..
-    val props = AggregateCommandDistributor.props[definition.Command, definition.Error](aggregateMgrs, ???)
+    val props = AggregateCommandDistributor.props[definition.Command, definition.Error](aggregateMgrs.toMap, ???)
     context.actorOf(props, "command-distributor")
   }
 
@@ -52,7 +54,7 @@ class ContextActor(val definition: BoundedContextBackendType, pubSub: ActorRef, 
     case Shutdown =>
       //TODO stop shards?
       context stop self
-    case msg: AggregateManager.Command => commandDistributor forward msg
+    case msg: AggregateActor.Command => commandDistributor forward msg
   }
 }
 

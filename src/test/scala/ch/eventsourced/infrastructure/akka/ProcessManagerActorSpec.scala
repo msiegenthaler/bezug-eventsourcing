@@ -2,7 +2,7 @@ package ch.eventsourced.infrastructure.akka
 
 import akka.testkit.TestProbe
 import ch.eventsourced.api.AggregateKey
-import ch.eventsourced.infrastructure.akka.AggregateManager._
+import ch.eventsourced.infrastructure.akka.AggregateActor._
 import ch.eventsourced.infrastructure.akka.Order.{StartOrder, OrderPlaced}
 
 class ProcessManagerActorSpec extends AbstractSpec {

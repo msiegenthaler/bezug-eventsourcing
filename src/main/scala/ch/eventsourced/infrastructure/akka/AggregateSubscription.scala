@@ -6,7 +6,7 @@ import akka.actor._
 import akka.actor.SupervisorStrategy.Escalate
 import akka.persistence.{RecoveryCompleted, PersistentActor}
 import ch.eventsourced.api.EventData
-import ch.eventsourced.infrastructure.akka.AggregateManager.{AggregateEvent, SubscriptionId}
+import ch.eventsourced.infrastructure.akka.AggregateActor.{AggregateEvent, SubscriptionId}
 
 /**
  * Handles a persistent single subscription for events of a single aggregate.

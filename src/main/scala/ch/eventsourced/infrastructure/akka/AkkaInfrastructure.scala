@@ -2,7 +2,7 @@ package ch.eventsourced.infrastructure.akka
 
 import java.net.URLEncoder
 import akka.util.Timeout
-import ch.eventsourced.infrastructure.akka.AggregateManager.Execute
+import ch.eventsourced.infrastructure.akka.AggregateActor.Execute
 import scala.concurrent.duration._
 import akka.actor.{ActorSystem, ActorRef}
 import akka.pattern.ask

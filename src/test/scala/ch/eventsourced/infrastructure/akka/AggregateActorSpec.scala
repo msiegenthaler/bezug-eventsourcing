@@ -1,38 +1,39 @@
 package ch.eventsourced.infrastructure.akka
 
-import scala.concurrent.duration._
-import akka.util.Timeout
 import akka.testkit.TestProbe
+import akka.util.Timeout
 import ch.eventsourced.api.EventData
-import ch.eventsourced.support.CompositeIdentifier
+import ch.eventsourced.infrastructure.akka.AggregateActor._
 import ch.eventsourced.infrastructure.akka.counter.Kill
-import ch.eventsourced.infrastructure.akka.AggregateManager._
+import ch.eventsourced.support.CompositeIdentifier
+import scala.concurrent.duration._
 
-class AggregateManagerSpec() extends AbstractSpec() {
+class AggregateActorSpec extends AbstractSpec {
   val eventHandler = TestProbe()
   val manager = {
     val subs = Map(CompositeIdentifier("testProbe") -> eventHandler.ref)
-    new AggregateManager("AggregateActorSpec", counter, subs)(system, 1, 3.seconds)
+    val aa = new AggregateActor("AggregateActorSpec", counter, subs)(system, 1, 3.seconds)
+    system actorOf LocalSharder.props(aa)
   }
 
-  implicit val timeout = Timeout(5.seconds)
+  implicit val timeout = Timeout(1.seconds)
 
   def executeSuccess(cmd: counter.Command) = {
-    manager.ref ! Execute(cmd, "ok", (e: counter.Error) => s"fail: $e")
+    manager ! Execute(cmd, "ok", (e: counter.Error) => s"fail: $e")
     expectMsg(5.seconds, "ok")
   }
 
   def expectNoEvent() = eventHandler.expectNoMsg()
   def expectNoEvents() = eventHandler.expectNoMsg(0.seconds)
-  def expectEvent(event: EventData, doAck: Boolean = true) = eventHandler.expectMsgPF() {
-    case AggregateEvent(CompositeIdentifier("testProbe"), `event`, ack) =>
+  def expectEvent(event: EventData, doAck: Boolean = true) = eventHandler.expectMsgPF(hint = event.toString) {
+    case AggregateEvent(_, `event`, ack) =>
       if (doAck) eventHandler.reply(ack)
   }
 
-  def killManager(id: counter.Id) = manager.ref ! Execute(Kill(id), (), (_: counter.Error) => ())
+  def killManager(id: counter.Id) = manager ! Execute(Kill(id), (), (_: counter.Error) => ())
 
   "aggregate manager" must {
-    import counter._
+    import ch.eventsourced.infrastructure.akka.counter._
 
     "create a new aggregate root for never used id" in {
       executeSuccess(Initialize())
@@ -61,7 +62,7 @@ class AggregateManagerSpec() extends AbstractSpec() {
       expectEvent(counter.Event.Data(init.counter, 0, Incremented(1)))
       expectNoEvents()
 
-      manager.ref ! Kill(init.counter)
+      manager ! Kill(init.counter)
 
       executeSuccess(Increment(init.counter))
       expectEvent(counter.Event.Data(init.counter, 1, Incremented(2)))
