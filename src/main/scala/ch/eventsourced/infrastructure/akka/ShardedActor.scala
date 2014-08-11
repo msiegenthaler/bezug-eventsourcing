@@ -7,7 +7,11 @@ import ch.eventsourced.support.CompositeIdentifier
 trait ShardedActor[Id] {
   def name: CompositeIdentifier
 
-  def props: Props
+  /** Props to create a new actor instance.
+    * @param publicRef reference the actor should give out to pears instead of 'context.self' if redirection of messages
+    *                  over the sharding infrastructure is desired.
+    */
+  def props(publicRef: ActorRef): Props
 
   def messageSelector: PartialFunction[Any, Id]
   def serializeId(id: Id): String
@@ -38,7 +42,7 @@ object LocalSharder {
 
     def startChild(id: Id) = {
       log.info(s"starting $id")
-      val child = context.actorOf(sharded.props, sharded.serializeId(id))
+      val child = context.actorOf(sharded.props(context.self), sharded.serializeId(id))
       children += id -> child
       child
     }

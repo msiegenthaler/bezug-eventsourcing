@@ -69,7 +69,7 @@ class AggregateActor[I, C, E](contextName: String,
     case SubscribeToAggregate(_, AggregateKey(id), _, _, _) => id
     case UnsubscribeFromAggregate(_, AggregateKey(id), _) => id
   }
-  def props = Props(new AggregateInstance)
+  def props(publicRef: ActorRef) = Props(new AggregateInstance)
 
   private val journalReplay = new AggregateJournalReplay(aggregateType)
   private case class EventDelivered(id: Long) extends JournalEvent
