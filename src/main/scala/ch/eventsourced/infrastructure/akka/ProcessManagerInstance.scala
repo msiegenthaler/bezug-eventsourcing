@@ -23,6 +23,18 @@ class ProcessManagerInstance[I, C, E](contextName: String,
     Props(new Process(id, commandDistributor, manager))
 
 
+  object SubscriptionId {
+    def apply(id: Id, key: AggregateKey) = {
+      val pm = CompositeIdentifier("processManager") / name / "instance" / serializeId(id)
+      pm / "aggregate" / key.aggregateType.name / key.aggregateType.serializeId(key.id)
+    }
+    def unapply(id: CompositeIdentifier): Option[Id] = id match {
+      case CompositeIdentifier("processManager", name, "instance", id, "aggregate", _, _) => parseId(id)
+      case _ => None
+    }
+    private val name = processManagerType.name
+  }
+
   /**
    * Implementation notes:
    * - Subscriptions are regenerated on loading, because the impl might change and depend on this new subscriptions
@@ -43,6 +55,7 @@ class ProcessManagerInstance[I, C, E](contextName: String,
     private var activeSubscriptions = Map.empty[SubscriptionId, AggregateKey]
 
     //TODO event deduplication
+    //TODO Passivate...
 
     //Live messages
     def receiveCommand = {

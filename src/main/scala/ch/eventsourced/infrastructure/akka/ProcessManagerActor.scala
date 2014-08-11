@@ -1,13 +1,12 @@
 package ch.eventsourced.infrastructure.akka
 
 import java.net.URLEncoder
-import ch.eventsourced.infrastructure.akka.AggregateManager.AggregateEvent
-import scala.util.hashing.MurmurHash3
-import akka.actor.{ActorSystem, Props, ActorRef}
+import akka.actor.{ActorLogging, ActorSystem, Props, ActorRef}
 import akka.contrib.pattern.ClusterSharding
 import akka.contrib.pattern.ShardRegion._
 import akka.persistence.{RecoveryCompleted, PersistentActor}
 import ch.eventsourced.api.{EventData, ProcessManagerType}
+import ch.eventsourced.infrastructure.akka.AggregateManager.AggregateEvent
 
 /**
  * Handles the running instances of a process manager type.
@@ -41,17 +40,14 @@ class ProcessManagerActor[C, E](contextName: String, val processManagerType: Pro
 
 
   private val idExtractor: IdExtractor = {
-    case msg@ProcessInitationMessage(id, _, _) =>
-      (idToShard(id), msg)
-    case event@AggregateEvent(subId, _, _) =>
-      println("### " + subId + " ##### " + event)
-      //TODO how..
-      ???
+    case msg@ProcessInitationMessage(processId, _, _) =>
+      (idToManager(processId), msg)
+    case event@AggregateEvent(instance.SubscriptionId(processId), _, _) =>
+      (idToManager(processId), event)
   }
-  private def idToShard(id: Id) = {
-    val sid = serializeId(id)
-    val shard = MurmurHash3.stringHash(sid) % managerCount
-    shard.toString
+  private def idToManager(id: Id) = {
+    val manager = serializeId(id).hashCode % managerCount
+    manager.toString
   }
   private val shardResolver: ShardResolver = idExtractor.andThen(_._1)
   private def initiatorMessage(id: Id, event: EventData, ack: Any) =
@@ -64,7 +60,7 @@ class ProcessManagerActor[C, E](contextName: String, val processManagerType: Pro
   private val instance = new ProcessManagerInstance(contextName, processManagerType)
 
 
-  private class ManagerActor extends PersistentActor {
+  private class ManagerActor extends PersistentActor with ActorLogging {
     val persistenceId = s"$contextName/ProcessesManager/$name/${self.path.name}"
 
     //TODO use snapshots to speed up loading?
@@ -81,6 +77,13 @@ class ProcessManagerActor[C, E](contextName: String, val processManagerType: Pro
       case ProcessInitAck(id, origin, ack) =>
         persist(ProcessStarted(id)) { e =>
           origin ! ack
+        }
+
+      case event@AggregateEvent(instance.SubscriptionId(processId), _, ack) =>
+        runningProcesses.get(processId).map(_ forward event).getOrElse {
+          if (!terminatedProcesses.contains(processId))
+            log.info(s"Received event on unknown subscription ${event.subscriptionId}")
+          sender() ! ack
         }
 
       case instance.ProcessCompleted(id) if runningProcesses.contains(id) =>

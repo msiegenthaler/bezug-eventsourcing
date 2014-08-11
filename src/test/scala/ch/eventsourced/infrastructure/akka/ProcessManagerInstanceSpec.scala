@@ -297,5 +297,12 @@ class ProcessManagerInstanceSpec extends AbstractSpec {
       val pmi2 = startPmi(o.id, commandProbe2.ref)
       commandProbe2.expectNoMsg()
     }
+
+    "unapply the subscriptionId" in {
+      val o = new TestOrder
+      val id = OrderProcess.Id(o.id.guid)
+      val s = orderPmi.SubscriptionId(id, o.key)
+      assert(orderPmi.SubscriptionId.unapply(s) === Some(id))
+    }
   }
 }
