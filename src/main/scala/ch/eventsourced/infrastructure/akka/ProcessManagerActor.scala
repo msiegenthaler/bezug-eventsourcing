@@ -1,6 +1,7 @@
 package ch.eventsourced.infrastructure.akka
 
 import java.net.URLEncoder
+import ch.eventsourced.infrastructure.akka.AggregateManager.AggregateEvent
 import scala.util.hashing.MurmurHash3
 import akka.actor.{ActorSystem, Props, ActorRef}
 import akka.contrib.pattern.ClusterSharding
@@ -41,10 +42,16 @@ class ProcessManagerActor[C, E](contextName: String, val processManagerType: Pro
 
   private val idExtractor: IdExtractor = {
     case msg@ProcessInitationMessage(id, _, _) =>
-      val sid = serializeId(id)
-      val managerId = MurmurHash3.stringHash(sid) % managerCount
-      (managerId.toString, msg)
-    case any => ("", any)
+      (idToShard(id), msg)
+    case event@AggregateEvent(subId, _, _) =>
+      println("### " + subId + " ##### " + event)
+      //TODO how..
+      ???
+  }
+  private def idToShard(id: Id) = {
+    val sid = serializeId(id)
+    val shard = MurmurHash3.stringHash(sid) % managerCount
+    shard.toString
   }
   private val shardResolver: ShardResolver = idExtractor.andThen(_._1)
   private def initiatorMessage(id: Id, event: EventData, ack: Any) =
@@ -96,7 +103,7 @@ class ProcessManagerActor[C, E](contextName: String, val processManagerType: Pro
     private var processesToStart = Set.empty[Id]
 
     def startProcess(id: Id): ActorRef = {
-      val ref = context actorOf instance.props(id, commandDistributor)
+      val ref = context actorOf instance.props(id, commandDistributor, Some(ProcessManagerActor.this.ref))
       runningProcesses += id -> ref
       ref
     }

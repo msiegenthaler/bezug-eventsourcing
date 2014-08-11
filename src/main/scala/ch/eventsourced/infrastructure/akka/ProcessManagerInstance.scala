@@ -18,7 +18,8 @@ class ProcessManagerInstance[I, C, E](contextName: String,
   case class InitiateProcess(event: EventData, ack: Any)
   case class ProcessCompleted(id: Id)
 
-  def props(id: Id, commandDistributor: ActorRef): Props = Props(new Process(id, commandDistributor))
+  def props(id: Id, commandDistributor: ActorRef, manager: Option[ActorRef] = None) =
+    Props(new Process(id, commandDistributor, manager))
 
 
   /**
@@ -28,7 +29,7 @@ class ProcessManagerInstance[I, C, E](contextName: String,
    * - The commands are persistent, because we don't want to send out commands from a new impl when replaying
    * - process is done only if it has no active subscriptions and no pending commands
    */
-  private class Process(id: Id, commandDistributor: ActorRef) extends PersistentActor with ActorLogging {
+  private class Process(id: Id, commandDistributor: ActorRef, manager: Option[ActorRef]) extends PersistentActor with ActorLogging {
     def persistenceId = s"$contextName/ProcessManager/$name/Instance/$id"
     val commandTarget = context actorOf OrderPreservingAck.props(commandDistributor) {
       case Execute(_, ok, fail) => msg => msg == ok || msg == fail
@@ -176,7 +177,7 @@ class ProcessManagerInstance[I, C, E](contextName: String,
       val subscriptionId = s"$persistenceId/${to.aggregateType}/${to.aggregateType.serializeId(to.id)}"
       val ack = SubscriptionAdded(subscriptionId, to)
       activeSubscriptions += subscriptionId -> to
-      commandTarget ! SubscribeToAggregate(subscriptionId, to, context.self.path, fromSequence, ack)
+      commandTarget ! SubscribeToAggregate(subscriptionId, to, manager.getOrElse(context.self).path, fromSequence, ack)
     }
     def removeSubscription(to: AggregateKey): Unit = {
       activeSubscriptions.filter(_._2 == to).map(_._1).foreach(removeSubscription(_, to))
@@ -194,7 +195,7 @@ class ProcessManagerInstance[I, C, E](contextName: String,
     def completeProcess() = {
       log.debug("process is completed")
       //we don't ack this message because it will be just sent again if the process is waken up again
-      context.parent ! ProcessCompleted(id)
+      manager.foreach(_ ! ProcessCompleted(id))
       context stop self
     }
   }
