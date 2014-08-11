@@ -2,10 +2,9 @@ package ch.eventsourced.infrastructure.akka
 
 import akka.actor.{PoisonPill, ActorRef}
 import akka.testkit.TestProbe
-import ch.eventsourced.api.{AggregateKey, EventData}
+import ch.eventsourced.api.AggregateKey
 import ch.eventsourced.infrastructure.akka.AggregateManager._
 import ch.eventsourced.infrastructure.akka.Payment.PaymentConfirmed
-import ch.eventsourced.support.Guid
 
 class ProcessManagerInstanceSpec extends AbstractSpec {
 
