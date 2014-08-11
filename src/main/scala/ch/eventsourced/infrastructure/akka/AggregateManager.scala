@@ -1,6 +1,5 @@
 package ch.eventsourced.infrastructure.akka
 
-import ch.eventsourced.infrastructure.akka.AggregateSubscription.OnEvent
 import scala.collection.immutable.Queue
 import scala.concurrent.duration._
 import akka.actor._
@@ -9,7 +8,9 @@ import akka.contrib.pattern.ShardRegion._
 import akka.persistence.{PersistentActor, RecoveryCompleted}
 import scalaz._
 import ch.eventsourced.api.{AggregateKey, EventData, AggregateType}
+import ch.eventsourced.support.CompositeIdentifier
 import ch.eventsourced.infrastructure.akka.AggregateSubscriptionManager.{Start, AddManualSubscription}
+import ch.eventsourced.infrastructure.akka.AggregateSubscription.OnEvent
 import AggregateManager._
 
 
@@ -23,19 +24,20 @@ object AggregateManager {
    * restart. So it's important to unsubscribe.
    * The subscription will start at the event with the sequenceId `startEventSeq` (first event delivered will have this seq).
    */
-  case class SubscribeToAggregate(subscriptionId: String, aggregate: AggregateKey,
+  case class SubscribeToAggregate(subscriptionId: SubscriptionId, aggregate: AggregateKey,
     subscriber: ActorPath, startEventSeq: Long = 0, ack: Any) extends Command
-
   /** Event delivered a part of the persistent subscription. Reply with `ack`. */
-  case class AggregateEvent(subscriptionId: String, event: EventData, ack: Any) extends Event
+  case class AggregateEvent(subscriptionId: SubscriptionId, event: EventData, ack: Any) extends Event
   /** Remove the (persistent) subscription. */
-  case class UnsubscribeFromAggregate(subscriptionId: String, aggregate: AggregateKey, ack: Any) extends Command
+  case class UnsubscribeFromAggregate(subscriptionId: SubscriptionId, aggregate: AggregateKey, ack: Any) extends Command
 
 
   /** Events that are saved to the journal. */
   sealed trait JournalEvent
   /** Emitted events in the journal (for use in persistent view). */
   case class EventEmitted[+Event](sequence: Long, event: Event) extends JournalEvent
+
+  type SubscriptionId = CompositeIdentifier
 }
 
 /**
@@ -56,7 +58,7 @@ object AggregateManager {
  */
 class AggregateManager[I, C, E](contextName: String,
   val aggregateType: AggregateType {type Id = I; type Command = C; type Error = E},
-  eventSubscriptions: Map[String, ActorRef])
+  eventSubscriptions: Map[SubscriptionId, ActorRef])
   (system: ActorSystem, shardCount: Int = 100, inMemoryTimeout: Duration = 5.minutes) {
   import aggregateType._
 

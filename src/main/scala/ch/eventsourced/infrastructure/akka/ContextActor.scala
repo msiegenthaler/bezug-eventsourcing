@@ -4,6 +4,7 @@ import java.net.URLEncoder
 import scala.concurrent.duration._
 import akka.actor.{Props, Actor, ActorRef}
 import ch.eventsourced.api.{AggregateType, BoundedContextBackendType}
+import ch.eventsourced.support.CompositeIdentifier
 import pubsub.Topic
 import ContextActor._
 
@@ -25,14 +26,14 @@ class ContextActor(val definition: BoundedContextBackendType, pubSub: ActorRef, 
     processMgrs.
       filter(_.registerOn.contains(aggregate)).
       map { pm =>
-      val name = s"ProcessManager/${pm.processManagerType.name}/Initiator"
-      (name, pm.initiator)
+      val id = CompositeIdentifier("processManager") / pm.processManagerType.name / "initiator"
+      (id, pm.initiator)
     }
   }
 
   val aggregateMgrs = definition.aggregates.map { aggregateType =>
     val publisher = createPubSubPublisher(aggregateType)
-    val subscriptions = Map("pubSub" -> publisher) ++
+    val subscriptions = Map(CompositeIdentifier("pubSub") -> publisher) ++
       inititorsFor(aggregateType)
 
     new AggregateManager(definition.name, aggregateType, subscriptions)(context.system,

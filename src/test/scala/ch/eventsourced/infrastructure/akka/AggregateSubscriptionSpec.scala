@@ -1,10 +1,11 @@
 package ch.eventsourced.infrastructure.akka
 
-import ch.eventsourced.infrastructure.akka.AggregateManager.AggregateEvent
+import ch.eventsourced.support.CompositeIdentifier
 import scala.concurrent.duration._
 import akka.actor.{PoisonPill, Actor, Props}
 import akka.testkit.TestProbe
 import ch.eventsourced.api.EventData
+import ch.eventsourced.infrastructure.akka.AggregateManager.{AggregateEvent, SubscriptionId}
 import ch.eventsourced.infrastructure.akka.AggregateSubscription.{OnEvent, Start}
 import ch.eventsourced.infrastructure.akka.counter.{Incremented, Initialize}
 
@@ -28,7 +29,7 @@ class AggregateSubscriptionSpec extends AbstractSpec {
   implicit val timeout = 2.seconds
 
   implicit class EventProbe(probe: TestProbe) {
-    def expectEvent(event: EventData, doAck: Boolean = true)(implicit id: String) = probe.expectMsgPF(timeout, event.toString) {
+    def expectEvent(event: EventData, doAck: Boolean = true)(implicit id: SubscriptionId) = probe.expectMsgPF(timeout, event.toString) {
       case AggregateEvent(id, `event`, ack) =>
         if (doAck) probe.reply(ack)
         val s = probe.sender()
@@ -47,7 +48,7 @@ class AggregateSubscriptionSpec extends AbstractSpec {
   "AggregateSubscription" must {
     "forward first message when at beginning and live stream from beginning" in {
       val probe = TestProbe()
-      implicit val id = "test1"
+      implicit val id = CompositeIdentifier("test1")
       val sub = system actorOf AggregateSubscription.props(id, "main", probe.ref, noJournalAccessExpected)
       probe.expectNoMsg()
       sub ! Start(0)
@@ -59,7 +60,7 @@ class AggregateSubscriptionSpec extends AbstractSpec {
 
     "forward messages when at beginning and live stream from beginning" in {
       val probe = TestProbe()
-      implicit val id = "test2"
+      implicit val id = CompositeIdentifier("test2")
       val sub = system actorOf AggregateSubscription.props(id, "main", probe.ref, noJournalAccessExpected)
       probe.expectNoMsg()
       sub ! Start(0)
@@ -75,7 +76,7 @@ class AggregateSubscriptionSpec extends AbstractSpec {
 
     "forward messages without journal access when start is the next live" in {
       val probe = TestProbe()
-      implicit val id = "test3"
+      implicit val id = CompositeIdentifier("test3")
       val sub = system actorOf AggregateSubscription.props(id, "main", probe.ref, noJournalAccessExpected, 1)
       probe.expectNoMsg()
       sub ! Start(1)
@@ -87,7 +88,7 @@ class AggregateSubscriptionSpec extends AbstractSpec {
 
     "not replay ack'ed messages" in {
       val probe = TestProbe()
-      implicit val id = "test4"
+      implicit val id = CompositeIdentifier("test4")
       val sub = system actorOf AggregateSubscription.props(id, "main", probe.ref, noJournalAccessExpected)
       probe.expectNoMsg()
       sub ! Start(0)
@@ -107,7 +108,7 @@ class AggregateSubscriptionSpec extends AbstractSpec {
 
     "replay non ack'ed messages" in {
       val probe = TestProbe()
-      implicit val id = "test5"
+      implicit val id = CompositeIdentifier("test5")
       val sub = system actorOf AggregateSubscription.props(id, "main", probe.ref, noJournalAccessExpected)
       probe.expectNoMsg()
       sub ! Start(0)
@@ -129,7 +130,7 @@ class AggregateSubscriptionSpec extends AbstractSpec {
 
     "only deliver next message after ack is received" in {
       val probe = TestProbe()
-      implicit val id = "test6"
+      implicit val id = CompositeIdentifier("test6")
       val sub = system actorOf AggregateSubscription.props(id, "main", probe.ref, noJournalAccessExpected)
       probe.expectNoMsg()
       sub ! Start(0)
@@ -152,7 +153,7 @@ class AggregateSubscriptionSpec extends AbstractSpec {
 
     "deliver in order if it receives new events while replaying the journal" in {
       val probe = TestProbe()
-      implicit val id = "test7"
+      implicit val id = CompositeIdentifier("test7")
       val sub = system actorOf AggregateSubscription.props(id, "main", probe.ref, noJournalAccessExpected)
       probe.expectNoMsg()
       sub ! Start(0)
@@ -184,7 +185,7 @@ class AggregateSubscriptionSpec extends AbstractSpec {
 
     "retry event delivery" in {
       val probe = TestProbe()
-      implicit val id = "test8"
+      implicit val id = CompositeIdentifier("test8")
       val sub = system actorOf AggregateSubscription.props(id, "main", probe.ref, noJournalAccessExpected)
       probe.expectNoMsg()
       sub ! Start(0)

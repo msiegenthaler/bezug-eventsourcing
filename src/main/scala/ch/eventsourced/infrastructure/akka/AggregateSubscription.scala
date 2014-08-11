@@ -6,7 +6,7 @@ import akka.actor._
 import akka.actor.SupervisorStrategy.Escalate
 import akka.persistence.{RecoveryCompleted, PersistentActor}
 import ch.eventsourced.api.EventData
-import ch.eventsourced.infrastructure.akka.AggregateManager.AggregateEvent
+import ch.eventsourced.infrastructure.akka.AggregateManager.{AggregateEvent, SubscriptionId}
 
 /**
  * Handles a persistent single subscription for events of a single aggregate.
@@ -25,14 +25,14 @@ object AggregateSubscription {
   /** Close the subscription. Events pending ack will be discarded. */
   case class Close(whenDone: Any)
 
-  def props(id: String, partition: String, target: ActorRef, journalReplay: (Long, Long) => Props, startAtEventSequence: Long = 0): Props = {
+  def props(id: SubscriptionId, partition: String, target: ActorRef, journalReplay: (Long, Long) => Props, startAtEventSequence: Long = 0): Props = {
     Props(new SubscriptionActor(id, partition, journalReplay, target, startAtEventSequence))
   }
 
   private implicit object EventDataOrdering extends Ordering[EventData] {
     def compare(x: EventData, y: EventData) = x.sequence compare y.sequence
   }
-  private class SubscriptionActor(id: String, partition: String, journalReplay: (Long, Long) => Props,
+  private class SubscriptionActor(id: SubscriptionId, partition: String, journalReplay: (Long, Long) => Props,
     _target: ActorRef, start: Long = 0) extends PersistentActor with ActorLogging with Stash {
     def persistenceId = s"AggregateSubscription/$id/$partition"
     private var pos = start - 1

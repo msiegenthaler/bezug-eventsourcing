@@ -4,13 +4,14 @@ import scala.concurrent.duration._
 import akka.util.Timeout
 import akka.testkit.TestProbe
 import ch.eventsourced.api.EventData
+import ch.eventsourced.support.CompositeIdentifier
 import ch.eventsourced.infrastructure.akka.counter.Kill
 import ch.eventsourced.infrastructure.akka.AggregateManager._
 
 class AggregateManagerSpec() extends AbstractSpec() {
   val eventHandler = TestProbe()
   val manager = {
-    val subs = Map("testProbe" -> eventHandler.ref)
+    val subs = Map(CompositeIdentifier("testProbe") -> eventHandler.ref)
     new AggregateManager("AggregateActorSpec", counter, subs)(system, 1, 3.seconds)
   }
 
@@ -24,7 +25,7 @@ class AggregateManagerSpec() extends AbstractSpec() {
   def expectNoEvent() = eventHandler.expectNoMsg()
   def expectNoEvents() = eventHandler.expectNoMsg(0.seconds)
   def expectEvent(event: EventData, doAck: Boolean = true) = eventHandler.expectMsgPF() {
-    case AggregateEvent("testProbe", `event`, ack) =>
+    case AggregateEvent(CompositeIdentifier("testProbe"), `event`, ack) =>
       if (doAck) eventHandler.reply(ack)
   }
 

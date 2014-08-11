@@ -4,6 +4,7 @@ import akka.actor.{ActorLogging, Props, ActorRef}
 import akka.persistence.{RecoveryCompleted, PersistentActor}
 import ch.eventsourced.api._
 import ch.eventsourced.infrastructure.akka.AggregateManager._
+import ch.eventsourced.support.CompositeIdentifier
 
 /**
  * Represents a running instance of a process manager.
@@ -39,7 +40,7 @@ class ProcessManagerInstance[I, C, E](contextName: String,
 
     private var state = seed(id)
     private var done = false
-    private var activeSubscriptions = Map.empty[String, AggregateKey]
+    private var activeSubscriptions = Map.empty[SubscriptionId, AggregateKey]
 
     //TODO event deduplication
 
@@ -174,7 +175,7 @@ class ProcessManagerInstance[I, C, E](contextName: String,
 
     //Subscription handling
     def addSubscription(to: AggregateKey, fromSequence: Long) = {
-      val subscriptionId = s"$persistenceId/${to.aggregateType}/${to.aggregateType.serializeId(to.id)}"
+      val subscriptionId = SubscriptionId(id, to)
       val ack = SubscriptionAdded(subscriptionId, to)
       activeSubscriptions += subscriptionId -> to
       commandTarget ! SubscribeToAggregate(subscriptionId, to, manager.getOrElse(context.self).path, fromSequence, ack)
@@ -182,7 +183,7 @@ class ProcessManagerInstance[I, C, E](contextName: String,
     def removeSubscription(to: AggregateKey): Unit = {
       activeSubscriptions.filter(_._2 == to).map(_._1).foreach(removeSubscription(_, to))
     }
-    def removeSubscription(id: String, to: AggregateKey): Unit = {
+    def removeSubscription(id: SubscriptionId, to: AggregateKey): Unit = {
       activeSubscriptions -= id
       commandTarget ! UnsubscribeFromAggregate(id, to, SubscriptionRemoved(id))
     }
@@ -205,8 +206,8 @@ class ProcessManagerInstance[I, C, E](contextName: String,
   private case class CommandEmitted(id: Long, command: C) extends PersitentEvent
   private case class CommandDelivered(id: Long) extends PersitentEvent
   private case class StateTransition(transition: Transition) extends PersitentEvent
-  private case class SubscriptionAdded(id: String, to: AggregateKey) extends PersitentEvent
-  private case class SubscriptionRemoved(id: String) extends PersitentEvent
+  private case class SubscriptionAdded(id: SubscriptionId, to: AggregateKey) extends PersitentEvent
+  private case class SubscriptionRemoved(id: SubscriptionId) extends PersitentEvent
   private case object CompletionStarted extends PersitentEvent
 
   private sealed trait CommandResponse {

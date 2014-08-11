@@ -7,7 +7,7 @@ import scala.concurrent.ExecutionContext.Implicits.global
 import akka.actor._
 import akka.persistence.{RecoveryCompleted, PersistentActor}
 import akka.pattern.ask
-import ch.eventsourced.infrastructure.akka.AggregateManager.{UnsubscribeFromAggregate, SubscribeToAggregate}
+import ch.eventsourced.infrastructure.akka.AggregateManager.{UnsubscribeFromAggregate, SubscribeToAggregate, SubscriptionId}
 import ch.eventsourced.infrastructure.akka.AggregateSubscription.{OnEvent, Close}
 
 /**
@@ -22,18 +22,16 @@ import ch.eventsourced.infrastructure.akka.AggregateSubscription.{OnEvent, Close
  */
 object AggregateSubscriptionManager {
   case class Start(at: Long)
-  case class AddManualSubscription(subscriptionId: String, partitionId: String, target: ActorRef)
+  case class AddManualSubscription(subscriptionId: SubscriptionId, partitionId: String, target: ActorRef)
 
   def props(namePrefix: String, journalReplay: (Long, Long) => Props): Props = Props(new Publisher(namePrefix, journalReplay))
 
-  private type SubscriptionId = String
   private class Publisher(namePrefix: String, journalReplay: (Long, Long) => Props)
     extends PersistentActor with ActorLogging with Stash {
     def persistenceId = s"$namePrefix/SubscriptionManager"
 
     //TODO use snapshots to improve performance
     //TODO think through supervisor role (probably individual restart)
-
 
     private var pos = -1L
     private var subscriptionActors = Map.empty[SubscriptionId, ActorRef]

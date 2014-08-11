@@ -2,7 +2,7 @@ package ch.eventsourced.infrastructure.akka
 
 import akka.testkit.TestProbe
 import ch.eventsourced.api.AggregateKey
-import ch.eventsourced.infrastructure.akka.AggregateManager.{AggregateEvent, Execute, UnsubscribeFromAggregate, SubscribeToAggregate}
+import ch.eventsourced.infrastructure.akka.AggregateManager._
 import ch.eventsourced.infrastructure.akka.Order.{StartOrder, OrderPlaced}
 
 class ProcessManagerActorSpec extends AbstractSpec {
@@ -21,7 +21,7 @@ class ProcessManagerActorSpec extends AbstractSpec {
         case SubscribeToAggregate(sid, `to`, subscriber, `from`, ack) => (sid, subscriber, ack)
       }
     }
-    def expectUnsubscribe(sid: String, from: AggregateKey) = {
+    def expectUnsubscribe(sid: SubscriptionId, from: AggregateKey) = {
       t.expectMsgPF(hint = s"unsubscribe $sid from $from") {
         case UnsubscribeFromAggregate(`sid`, `from`, ack) => ack
       }
