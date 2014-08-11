@@ -8,7 +8,8 @@ import ch.eventsourced.infrastructure.akka.Order.{StartOrder, OrderPlaced}
 class ProcessManagerActorSpec extends AbstractSpec {
 
   val testProbe = TestProbe()
-  val pma = new ProcessManagerActor("test", OrderProcess, testProbe.ref)(system, 10)
+  val pma = new ProcessManagerActor("test", OrderProcess, testProbe.ref)
+  val pmaActor = system actorOf LocalSharder.props(pma)
 
   implicit class RichCommandProbe(t: TestProbe) {
     def expectSubscribe() = {
@@ -40,7 +41,7 @@ class ProcessManagerActorSpec extends AbstractSpec {
       val ope = Order.EventData(orderId, 1, op)
       val id = pma.processManagerType.initiate(ope)
 
-      pma.ref ! pma.ProcessInitationMessage(id, ope, "ack1")
+      pmaActor ! pma.InitiateProcess(id, ope, "ack1")
       expectMsg("ack1")
 
       val (orderSubscription, subscriber, ackSubO) = testProbe.expectSubscribe(ope.aggregateKey, ope.sequence)
@@ -70,7 +71,7 @@ class ProcessManagerActorSpec extends AbstractSpec {
       val ope = Order.EventData(orderId, 1, op)
       val id = pma.processManagerType.initiate(ope)
 
-      pma.ref ! pma.ProcessInitationMessage(id, ope, "ack1")
+      pmaActor ! pma.InitiateProcess(id, ope, "ack1")
       expectMsg("ack1")
 
       val (orderSubscription, subscriber, ackSubO) = testProbe.expectSubscribe(ope.aggregateKey, ope.sequence)
@@ -84,12 +85,12 @@ class ProcessManagerActorSpec extends AbstractSpec {
       val ope = Order.EventData(orderId, 1, op)
       val id = pma.processManagerType.initiate(ope)
 
-      pma.ref ! pma.ProcessInitationMessage(id, ope, "ack1")
+      pmaActor ! pma.InitiateProcess(id, ope, "ack1")
       expectMsg("ack1")
 
       val (orderSubscription, subscriber, ackSubO) = testProbe.expectSubscribe(ope.aggregateKey, ope.sequence)
       testProbe.reply(ackSubO)
-      assert(subscriber === pma.ref.path)
+      assert(subscriber === pmaActor.path)
     }
   }
 }

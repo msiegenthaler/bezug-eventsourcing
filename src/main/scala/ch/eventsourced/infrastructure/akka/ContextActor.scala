@@ -17,17 +17,20 @@ class ContextActor(val definition: BoundedContextBackendType, pubSub: ActorRef, 
   }
 
   val processMgrs = definition.processManagers.map { pmt =>
-    val manager = new ProcessManagerActor[pmt.Command, pmt.Error](definition.name, pmt,
-      commandDistributor)(context.system, config.processManagerPartitions)
-    manager
+    val manager = new ProcessManagerActor[pmt.Id, pmt.Command, pmt.Error](definition.name, pmt,
+      commandDistributor)
+    val actor: ActorRef = ??? // TODO start with sharding
+  val initiator: ActorRef = ??? // TODO start with sharding
+    (manager, actor, initiator)
   }
 
   def inititorsFor(aggregate: AggregateType) = {
     processMgrs.
-      filter(_.registerOn.contains(aggregate)).
-      map { pm =>
-      val id = CompositeIdentifier("processManager") / pm.processManagerType.name / "initiator"
-      (id, pm.initiator)
+      filter(_._1.registerOn.contains(aggregate)).
+      map {
+      case (pm, _, initiator) =>
+        val id = pm.name / "initiator"
+        (id, initiator)
     }
   }
 
@@ -36,10 +39,9 @@ class ContextActor(val definition: BoundedContextBackendType, pubSub: ActorRef, 
     val subscriptions = Map(CompositeIdentifier("pubSub") -> publisher) ++
       inititorsFor(aggregateType)
 
-    val aa = new AggregateActor(definition.name, aggregateType, subscriptions)(context.system,
-      shardCount = config.shardCount, inMemoryTimeout = config.aggregateTimeout)
+    val manager = new AggregateActor(definition.name, aggregateType, subscriptions)(config.aggregateTimeout)
     val actor: ActorRef = ??? // TODO start with sharding
-    (aa, actor)
+    (manager, actor)
   }
 
   val commandDistributor: ActorRef = {

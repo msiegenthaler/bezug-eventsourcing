@@ -8,10 +8,10 @@ import ch.eventsourced.infrastructure.akka.Payment.PaymentConfirmed
 
 class ProcessManagerInstanceSpec extends AbstractSpec {
 
-  val orderPmi = new ProcessManagerInstance("test", OrderProcess)
   def startPmi(orderId: Order.Id, cmdDist: ActorRef) = {
-    val props = orderPmi.props(OrderProcess.Id(orderId.guid), cmdDist)
-    system actorOf props
+    val orderPmi = new ProcessManagerActor("test", OrderProcess, cmdDist)
+    val actor = system actorOf LocalSharder.props(orderPmi)
+    (orderPmi, actor)
   }
 
   class TestOrder {
@@ -51,7 +51,7 @@ class ProcessManagerInstanceSpec extends AbstractSpec {
     "handle an initiation event" in {
       val o = new TestOrder
       val commandProbe = TestProbe()
-      val pmi = startPmi(o.id, commandProbe.ref)
+      val (orderPmi, pmi) = startPmi(o.id, commandProbe.ref)
       pmi ! orderPmi.InitiateProcess(o.placed, "ack1")
       expectMsg("ack1")
     }
@@ -59,7 +59,7 @@ class ProcessManagerInstanceSpec extends AbstractSpec {
     "subscribe to the source of the initiation event" in {
       val o = new TestOrder
       val commandProbe = TestProbe()
-      val pmi = startPmi(o.id, commandProbe.ref)
+      val (orderPmi, pmi) = startPmi(o.id, commandProbe.ref)
       pmi ! orderPmi.InitiateProcess(o.placed, "ack1")
       expectMsg("ack1")
       val (_, ack) = commandProbe.expectSubscribe(o.key, o.placed.sequence)
@@ -69,7 +69,7 @@ class ProcessManagerInstanceSpec extends AbstractSpec {
     "execute the actions returned by the process manager" in {
       val o = new TestOrder
       val commandProbe = TestProbe()
-      val pmi = startPmi(o.id, commandProbe.ref)
+      val (orderPmi, pmi) = startPmi(o.id, commandProbe.ref)
       pmi ! orderPmi.InitiateProcess(o.placed, "ack1")
       expectMsg("ack1")
       val (orderSubscription, ackSubO) = commandProbe.expectSubscribe(o.key, o.placed.sequence)
@@ -96,7 +96,7 @@ class ProcessManagerInstanceSpec extends AbstractSpec {
     "unsubscribe from all when done" in {
       val o = new TestOrder
       val commandProbe = TestProbe()
-      val pmi = startPmi(o.id, commandProbe.ref)
+      val (orderPmi, pmi) = startPmi(o.id, commandProbe.ref)
       pmi ! orderPmi.InitiateProcess(o.placed, "ack1")
       expectMsg("ack1")
       val (orderSubscription, ackSubO) = commandProbe.expectSubscribe(o.key, o.placed.sequence)
@@ -136,7 +136,7 @@ class ProcessManagerInstanceSpec extends AbstractSpec {
     "resend unconfirmed commands" in {
       val o = new TestOrder
       val commandProbe = TestProbe()
-      val pmi = startPmi(o.id, commandProbe.ref)
+      val (orderPmi, pmi) = startPmi(o.id, commandProbe.ref)
       pmi ! orderPmi.InitiateProcess(o.placed, "ack1")
       expectMsg("ack1")
       val (orderSubscription, ackSubO) = commandProbe.expectSubscribe(o.key, o.placed.sequence)
@@ -166,7 +166,7 @@ class ProcessManagerInstanceSpec extends AbstractSpec {
     "resend unconfirmed commands after restart" in {
       val o = new TestOrder
       val commandProbe = TestProbe()
-      val pmi = startPmi(o.id, commandProbe.ref)
+      val (orderPmi, pmi) = startPmi(o.id, commandProbe.ref)
       pmi ! orderPmi.InitiateProcess(o.placed, "ack1")
       expectMsg("ack1")
       val (orderSubscription, ackSubO) = commandProbe.expectSubscribe(o.key, o.placed.sequence)
@@ -200,7 +200,7 @@ class ProcessManagerInstanceSpec extends AbstractSpec {
     "resend unconfirmed subscribes after restart" in {
       val o = new TestOrder
       val commandProbe = TestProbe()
-      val pmi = startPmi(o.id, commandProbe.ref)
+      val (orderPmi, pmi) = startPmi(o.id, commandProbe.ref)
       pmi ! orderPmi.InitiateProcess(o.placed, "ack1")
       expectMsg("ack1")
       val (orderSubscription, ackSubO) = commandProbe.expectSubscribe(o.key, o.placed.sequence)
@@ -235,7 +235,7 @@ class ProcessManagerInstanceSpec extends AbstractSpec {
     "resend unconfirmed unsubscribes after restart" in {
       val o = new TestOrder
       val commandProbe = TestProbe()
-      val pmi = startPmi(o.id, commandProbe.ref)
+      val (orderPmi, pmi) = startPmi(o.id, commandProbe.ref)
       pmi ! orderPmi.InitiateProcess(o.placed, "ack1")
       expectMsg("ack1")
       val (orderSubscription, ackSubO) = commandProbe.expectSubscribe(o.key, o.placed.sequence)
@@ -244,7 +244,6 @@ class ProcessManagerInstanceSpec extends AbstractSpec {
       pmi ! AggregateEvent(orderSubscription, o.placed, "ack2")
       expectMsg("ack2")
 
-      //Request payment
       //Request payment
       val (ackReq, _, paymentKey2) = commandProbe.expectCommand {
         case Payment.RequestPayment(100, "test-bill", id) => id
@@ -269,7 +268,7 @@ class ProcessManagerInstanceSpec extends AbstractSpec {
     "not resend confirmed commands/subs after restart" in {
       val o = new TestOrder
       val commandProbe = TestProbe()
-      val pmi = startPmi(o.id, commandProbe.ref)
+      val (orderPmi, pmi) = startPmi(o.id, commandProbe.ref)
       pmi ! orderPmi.InitiateProcess(o.placed, "ack1")
       expectMsg("ack1")
       val (orderSubscription, ackSubO) = commandProbe.expectSubscribe(o.key, o.placed.sequence)
@@ -300,6 +299,7 @@ class ProcessManagerInstanceSpec extends AbstractSpec {
 
     "unapply the subscriptionId" in {
       val o = new TestOrder
+      val (orderPmi, _) = startPmi(o.id, TestProbe().ref)
       val id = OrderProcess.Id(o.id.guid)
       val s = orderPmi.SubscriptionId(id, o.key)
       assert(orderPmi.SubscriptionId.unapply(s) === Some(id))

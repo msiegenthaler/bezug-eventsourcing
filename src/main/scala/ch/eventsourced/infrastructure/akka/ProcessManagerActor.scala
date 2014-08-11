@@ -1,119 +1,254 @@
 package ch.eventsourced.infrastructure.akka
 
-import java.net.URLEncoder
-import akka.actor.{ActorLogging, ActorSystem, Props, ActorRef}
-import akka.contrib.pattern.ClusterSharding
-import akka.contrib.pattern.ShardRegion._
+import akka.actor.{Props, ActorLogging, ActorRef}
 import akka.persistence.{RecoveryCompleted, PersistentActor}
-import ch.eventsourced.api.{EventData, ProcessManagerType}
-import ch.eventsourced.infrastructure.akka.AggregateActor.AggregateEvent
+import ch.eventsourced.api.{ProcessManager, EventData, AggregateKey, ProcessManagerType}
+import ch.eventsourced.infrastructure.akka.AggregateActor._
+import ch.eventsourced.support.CompositeIdentifier
 
 /**
- * Handles the running instances of a process manager type.
- * - Keeps track of running processes and instantiates them on startup.
- * - Starts new processes in response to ProcessInitationMessage.
- * - Distributes running processes across the nodes.
+ * Represents a running instance of a process manager.
+ * To use instantiate a x.initiator actor and shard the x.props actors.
  *
- * Do not change the manager count after the first start of the application, the pending ProcessManagers will
- * not work anymore after the change. Terminated and new instances are not affected.
+ * Responsibilities of the ProcessManagerActor:
+ * - setup the initial subscription (at InitiateProcess message).
+ * - process the events received from subscriptions
+ * and in result
+ * - reliably send the commands
+ * - subscribe/unsubscribe to/from aggregate events
  */
-class ProcessManagerActor[C, E](contextName: String, val processManagerType: ProcessManagerType {type Command <: C; type Error <: E},
-  commandDistributor: ActorRef)(system: ActorSystem, managerCount: Int = 1000) {
+class ProcessManagerActor[I, C, E](contextName: String,
+  val processManagerType: ProcessManagerType {type Id = I; type Command <: C; type Error <: E},
+  commandDistributor: ActorRef) extends ShardedActor[I] {
   import processManagerType._
-  private val fullName = s"$contextName/ProcessManager/$name/Manager"
 
-  /** Message that starts a process if it is not already started. */
-  case class ProcessInitationMessage(process: Id, event: EventData, ack: Any)
-
-  /** Handles ProcessInitationMessage messages. */
-  def ref: ActorRef = region
+  def props(publicRef: ActorRef) = Props(new Process(publicRef))
 
   /** Handles EventData messages and starts process instances as needed. */
-  val initiator = {
-    val i = new ProcessInitator(processManagerType, initiatorMessage)
-    val name = URLEncoder.encode(s"$fullName/Initiator", "UTF-8")
-    system.actorOf(i.props(ref), name)
-  }
-
-  /** Aggregate types to register the initiator to. */
+  def initiator = new ProcessInitator(processManagerType, initiateMessage)
   def registerOn = processManagerType.triggeredBy
 
+  def name = CompositeIdentifier(contextName) / "processManager" / processManagerType.name
+  def serializeId(id: I) = processManagerType.serializeId(id)
+  def parseId(value: String) = processManagerType.parseId(value)
 
-  private val idExtractor: IdExtractor = {
-    case msg@ProcessInitationMessage(processId, _, _) =>
-      (idToManager(processId), msg)
-    case event@AggregateEvent(instance.SubscriptionId(processId), _, _) =>
-      (idToManager(processId), event)
-  }
-  private def idToManager(id: Id) = {
-    val manager = serializeId(id).hashCode % managerCount
-    manager.toString
-  }
-  private val shardResolver: ShardResolver = idExtractor.andThen(_._1)
-  private def initiatorMessage(id: Id, event: EventData, ack: Any) =
-    ProcessInitationMessage(id, event, ack)
-
-  private val region = {
-    ClusterSharding(system).start(fullName, Some(Props(new ManagerActor)), idExtractor, shardResolver)
+  def messageSelector = {
+    case msg@InitiateProcess(processId, _, _) => processId
+    case AggregateEvent(SubscriptionId(processId), _, _) => processId
   }
 
-  private val instance = new ProcessManagerInstance(contextName, processManagerType)
+  /** Message that starts a process if it is not already started. */
+  case class InitiateProcess(process: Id, event: EventData, ack: Any)
+  object InitiateProcess {
+    def apply(event: EventData, ack: Any): InitiateProcess =
+      apply(processManagerType.initiate(event), event, ack)
+  }
+  private def initiateMessage(process: Id, event: EventData, ack: Any) = InitiateProcess(process, event, ack)
 
 
-  private class ManagerActor extends PersistentActor with ActorLogging {
-    val persistenceId = s"$contextName/ProcessesManager/$name/${self.path.name}"
+  private[akka] object SubscriptionId {
+    def apply(id: Id, key: AggregateKey) = {
+      val pm = ProcessManagerActor.this.name / "instance" / serializeId(id)
+      pm / "aggregate" / key.aggregateType.name / key.aggregateType.serializeId(key.id)
+    }
+    def unapply(id: CompositeIdentifier): Option[Id] = id match {
+      case CompositeIdentifier(`contextName`, "processManager", `name`, "instance", id, "aggregate", _, _) =>
+        parseId(id)
+      case _ => None
+    }
+    private val name = processManagerType.name
+  }
 
-    //TODO use snapshots to speed up loading?
-    private var runningProcesses = Map.empty[Id, ActorRef]
-    //TODO this might get a bit memory intensive... maybe better use a bloom filter and an external storage?
-    private var terminatedProcesses = Set.empty[Id]
+  /**
+   * Implementation notes:
+   * - Subscriptions are regenerated on loading, because the impl might change and depend on this new subscriptions
+   * - The actually setup subscriptions (acks) are persistent, because they need to be removed
+   * - The commands are persistent, because we don't want to send out commands from a new impl when replaying
+   * - process is done only if it has no active subscriptions and no pending commands
+   */
+  private class Process(publicRef: ActorRef) extends ActorBase with ActorLogging {
+    val commandTarget = context actorOf OrderPreservingAck.props(commandDistributor) {
+      case Execute(_, ok, fail) => msg => msg == ok || msg == fail
+      case s: SubscribeToAggregate => _ == s.ack
+      case s: UnsubscribeFromAggregate => _ == s.ack
+    }
 
+    private var state = seed(id)
+    private var done = false
+    private var activeSubscriptions = Map.empty[SubscriptionId, AggregateKey]
+
+    //TODO event deduplication
+    //TODO Passivate...
+
+    //Live messages
     def receiveCommand = {
-      case ProcessInitationMessage(id, event, ack)
-        if !runningProcesses.contains(id) && !terminatedProcesses.contains(id) =>
-        val pia = ProcessInitAck(id, sender(), ack)
-        startProcess(id) ! instance.InitiateProcess(event, pia)
-
-      case ProcessInitAck(id, origin, ack) =>
-        persist(ProcessStarted(id)) { e =>
-          origin ! ack
-        }
-
-      case event@AggregateEvent(instance.SubscriptionId(processId), _, ack) =>
-        runningProcesses.get(processId).map(_ forward event).getOrElse {
-          if (!terminatedProcesses.contains(processId))
-            log.info(s"Received event on unknown subscription ${event.subscriptionId}")
+      case InitiateProcess(`id`, event, ack) =>
+        persist(Started(event.aggregateKey, event.sequence)) { e =>
+          addSubscription(e.from, event.sequence)
+          //subscription will send us the event again
           sender() ! ack
         }
 
-      case instance.ProcessCompleted(id) if runningProcesses.contains(id) =>
-        persist(ProcessEnded) { event =>
-          runningProcesses -= id
-          terminatedProcesses += id
-        }
+      case CommandAck(cmdId) =>
+        commandConfirmed(cmdId)
+      case CommandFailed(cmdId, cmd, error) =>
+        log.error(s"Emitted command $cmd (sequence=$cmdId) failed: $error")
+        commandConfirmed(cmdId)
+
+      case s@SubscriptionAdded(id, to) =>
+        persist(s) { _ => ()}
+
+      case s@SubscriptionRemoved(id) =>
+        persist(s) { _ => ()}
+        terminateIfDone()
+
+      case AggregateEvent(subId, event, ack) if !done && activeSubscriptions.contains(subId) =>
+        state.handle.lift(event).map {
+          case Continue(transition, cmds) =>
+            cmds.foreach(emitCommand)
+            persist(StateTransition(transition)) { t =>
+              handleTransition(t)
+              sender() ! ack
+            }
+
+          case Completed(cmds) =>
+            log.debug(s"process execution completed, unsubscribing from ${activeSubscriptions.size} aggregates")
+            done = true
+            cmds.foreach(emitCommand)
+            persist(CompletionStarted) { c =>
+              activeSubscriptions.foreach(s => removeSubscription(s._1, s._2))
+              terminateIfDone()
+              sender() ! ack
+            }
+        }.getOrElse(sender() ! ack)
+
+      case AggregateEvent(subId, event, ack) if !activeSubscriptions.contains(subId) =>
+        //unrequested event, try to remove the subscription
+        removeSubscription(subId, event.aggregateKey)
     }
 
+    // From Journal
     def receiveRecover = {
-      case ProcessStarted(id) =>
-        processesToStart += id
-      case ProcessEnded(id) =>
-        processesToStart -= id
-        terminatedProcesses += id
-      case RecoveryCompleted =>
-        processesToStart foreach startProcess
-        processesToStart = Set.empty
-    }
-    private var processesToStart = Set.empty[Id]
+      case Started(from, seq) =>
+        expectedSubscriptionsAfterRecovery += from -> seq
 
-    def startProcess(id: Id): ActorRef = {
-      val ref = context actorOf instance.props(id, commandDistributor, Some(ProcessManagerActor.this.ref))
-      runningProcesses += id -> ref
-      ref
+      case StateTransition(transition) if !done =>
+        val (newState, subscriptionActions) = state.applyTransition.lift(transition).
+          getOrElse(throw new IllegalStateException(s"Transition $transition not expected in state $state"))
+        state = newState
+        subscriptionActions foreach {
+          case ProcessManager.Subscribe(to) =>
+            expectedSubscriptionsAfterRecovery += to -> 0L
+          case ProcessManager.Unsubscribe(from) =>
+            expectedSubscriptionsAfterRecovery -= from
+        }
+
+      case CompletionStarted =>
+        done = true
+        expectedSubscriptionsAfterRecovery = Map.empty
+        ()
+
+      case SubscriptionAdded(id, to) => activeSubscriptions += id -> to
+      case SubscriptionRemoved(id) => activeSubscriptions -= id
+
+      case CommandEmitted(id, cmd) =>
+        commandsToResend += id -> cmd
+        nextCommandId += 1
+      case CommandDelivered(id) =>
+        commandsToResend -= id
+
+      case ProcessCompleted =>
+        completeProcess() // will terminate the actor
+
+      case RecoveryCompleted =>
+        log.debug(s"Loaded from event store")
+
+        //Resend unacknowledged commands
+        commandsToResend.map(e => CommandEmitted(e._1, e._2)).foreach(sendCommand _)
+        commandsToResend = Map.empty
+
+        //Set up subscriptions
+        val pendingSubscribes = expectedSubscriptionsAfterRecovery -- activeSubscriptions.values
+        val pendingUnsubscribes = activeSubscriptions
+          .filterNot(e => expectedSubscriptionsAfterRecovery.contains(e._2))
+        pendingSubscribes.foreach((addSubscription _).tupled)
+        pendingUnsubscribes.foreach(e => removeSubscription(e._1, e._2))
+        expectedSubscriptionsAfterRecovery = Map.empty
+
+        terminateIfDone
+    }
+    private var expectedSubscriptionsAfterRecovery = Map.empty[AggregateKey, Long]
+    private var commandsToResend = Map.empty[Long, C]
+
+
+    //Command handling
+    def emitCommand(cmd: Command) = {
+      val commandId = nextCommandId
+      nextCommandId += 1
+      persist(CommandEmitted(commandId, cmd))(sendCommand)
+    }
+    def sendCommand(cmd: CommandEmitted) = {
+      unconfirmedCommands += cmd.id
+      commandTarget ! Execute(cmd.command, CommandAck(cmd.id), (e: Error) => CommandFailed(cmd.id, cmd.command, e))
+    }
+    def commandConfirmed(id: Long) = {
+      unconfirmedCommands -= id
+      persist(CommandDelivered(id)) { _ => ()}
+      terminateIfDone()
+    }
+    private var nextCommandId = 0L
+    private var unconfirmedCommands = Set.empty[Long]
+
+    //Transition Handling
+    def handleTransition(transition: StateTransition) = {
+      val (newState, subscriptionActions) = state.applyTransition(transition.transition)
+      state = newState
+      subscriptionActions foreach {
+        case ProcessManager.Subscribe(to) => addSubscription(to, 0)
+        case ProcessManager.Unsubscribe(from) => removeSubscription(from)
+      }
+    }
+
+    //Subscription handling
+    def addSubscription(to: AggregateKey, fromSequence: Long) = {
+      val subscriptionId = SubscriptionId(id, to)
+      val ack = SubscriptionAdded(subscriptionId, to)
+      activeSubscriptions += subscriptionId -> to
+      commandTarget ! SubscribeToAggregate(subscriptionId, to, publicRef.path, fromSequence, ack)
+    }
+    def removeSubscription(to: AggregateKey): Unit = {
+      activeSubscriptions.filter(_._2 == to).map(_._1).foreach(removeSubscription(_, to))
+    }
+    def removeSubscription(id: SubscriptionId, to: AggregateKey): Unit = {
+      activeSubscriptions -= id
+      commandTarget ! UnsubscribeFromAggregate(id, to, SubscriptionRemoved(id))
+    }
+
+    //Termination
+    def terminateIfDone() = {
+      if (done && activeSubscriptions.isEmpty && unconfirmedCommands.isEmpty)
+        persist(ProcessCompleted)(_ => completeProcess())
+    }
+    def completeProcess() = {
+      log.debug("process is completed")
+      context stop self
     }
   }
-  private sealed trait Event
-  private case class ProcessStarted(id: Id) extends Event
-  private case class ProcessEnded(id: Id) extends Event
 
-  private case class ProcessInitAck(id: Id, origin: ActorRef, ack: Any)
+  private sealed trait PersitentEvent
+  private case class Started(from: AggregateKey, atSequence: Long) extends PersitentEvent
+  private case class CommandEmitted(id: Long, command: C) extends PersitentEvent
+  private case class CommandDelivered(id: Long) extends PersitentEvent
+  private case class StateTransition(transition: Transition) extends PersitentEvent
+  private case class SubscriptionAdded(id: SubscriptionId, to: AggregateKey) extends PersitentEvent
+  private case class SubscriptionRemoved(id: SubscriptionId) extends PersitentEvent
+  private case object CompletionStarted extends PersitentEvent
+  private case object ProcessCompleted extends PersitentEvent
+
+
+  private sealed trait CommandResponse {
+    def id: Long
+  }
+  private case class CommandAck(id: Long) extends CommandResponse
+  private case class CommandFailed(id: Long, cmd: C, error: E) extends CommandResponse
 }

@@ -56,8 +56,7 @@ object AggregateActor {
  */
 class AggregateActor[I, C, E](contextName: String,
   val aggregateType: AggregateType {type Id = I; type Command = C; type Error = E},
-  eventSubscriptions: Map[SubscriptionId, ActorRef])
-  (system: ActorSystem, shardCount: Int = 100, inMemoryTimeout: Duration = 5.minutes) extends ShardedActor[I] {
+  eventSubscriptions: Map[SubscriptionId, ActorRef])(inMemoryTimeout: Duration = 5.minutes) extends ShardedActor[I] {
   import aggregateType._
 
   def name = CompositeIdentifier(contextName) / "aggregate" / aggregateType.name

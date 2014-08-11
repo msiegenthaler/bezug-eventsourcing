@@ -10,22 +10,15 @@ abstract class AbstractSpec(_system: ActorSystem) extends TestKit(_system) with 
   def this() = this {
     val config = ConfigFactory.parseString(
       """
-        |akka.actor.provider = "akka.cluster.ClusterActorRefProvider"
-        |akka.loglevel = "WARNING"
+        |akka.loglevel = "DEBUG"
         |akka.actor.debug.receive = "on"
         |akka.actor.debug.autoreceive = "off"
         |akka.actor.debug.lifecycle = "off"
-        |akka.remote.netty.tcp.hostname = "127.0.0.1"
-        |akka.remote.netty.tcp.port = 0
         |akka.persistence.journal.plugin = "in-memory-journal"
         |akka.persistence.at-least-once-delivery.redeliver-interval = "1s"
         |ch.eventsourced.aggregate-subscription.retry-interval = 1s
       """.stripMargin)
     ActorSystem(getClass.getName.filter(_.isLetterOrDigit), config)
-  }
-
-  override def beforeAll {
-    Cluster.get(system).join(Cluster.get(system).selfAddress)
   }
 
   override def afterAll {
