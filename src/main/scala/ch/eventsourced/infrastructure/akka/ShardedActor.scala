@@ -1,7 +1,6 @@
 package ch.eventsourced.infrastructure.akka
 
 import akka.actor._
-import akka.persistence.PersistentActor
 import ch.eventsourced.support.CompositeIdentifier
 
 trait ShardedActor[Id] {
@@ -11,19 +10,11 @@ trait ShardedActor[Id] {
     * @param publicRef reference the actor should give out to pears instead of 'context.self' if redirection of messages
     *                  over the sharding infrastructure is desired.
     */
-  def props(publicRef: ActorRef): Props
+  def props(publicRef: ActorRef, id: Id, name: CompositeIdentifier): Props
 
   def messageSelector: PartialFunction[Any, Id]
   def serializeId(id: Id): String
   def parseId(value: String): Option[Id]
-
-
-  trait ActorBase extends PersistentActor {
-    final val id = {
-      parseId(self.path.name).getOrElse(throw new IllegalStateException(s"id ${self.path.name} cannot be parsed"))
-    }
-    final override val persistenceId = (name / serializeId(id)).serialize
-  }
 }
 
 object LocalSharder {
@@ -42,7 +33,8 @@ object LocalSharder {
 
     def startChild(id: Id) = {
       log.info(s"starting $id")
-      val child = context.actorOf(sharded.props(context.self), sharded.serializeId(id))
+      val name = sharded.name / sharded.serializeId(id)
+      val child = context.actorOf(sharded.props(context.self, id, name), sharded.serializeId(id))
       children += id -> child
       child
     }

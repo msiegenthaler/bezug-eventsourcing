@@ -4,7 +4,7 @@ import scala.collection.immutable.Queue
 import scala.concurrent.duration._
 import akka.actor._
 import akka.contrib.pattern.ShardRegion.Passivate
-import akka.persistence.RecoveryCompleted
+import akka.persistence.{PersistentActor, RecoveryCompleted}
 import scalaz._
 import ch.eventsourced.api.{EventData, AggregateKey, AggregateType}
 import ch.eventsourced.support.CompositeIdentifier
@@ -68,14 +68,15 @@ class AggregateActor[I, C, E](contextName: String,
     case SubscribeToAggregate(_, AggregateKey(id), _, _, _) => id
     case UnsubscribeFromAggregate(_, AggregateKey(id), _) => id
   }
-  def props(publicRef: ActorRef) = Props(new AggregateInstance)
+  def props(publicRef: ActorRef, id: Id, name: CompositeIdentifier) = Props(new AggregateInstance(id, name))
 
   private val journalReplay = new AggregateJournalReplay(aggregateType)
   private case class EventDelivered(id: Long) extends JournalEvent
   private case class EventAck(id: Long) extends JournalEvent
   private case object PassivateAggregateRoot
 
-  private class AggregateInstance extends ActorBase with ActorLogging {
+  private class AggregateInstance(id: Id, name: CompositeIdentifier) extends PersistentActor with ActorLogging {
+    val persistenceId = name.serialize
     private var eventSeq: Long = 0
     private var state = seed(id)
 
@@ -93,7 +94,7 @@ class AggregateActor[I, C, E](contextName: String,
       case OnEvent(_, ack) => _ == ack
     }
 
-    log.debug(s"Starting aggregator actor for $name with id $persistenceId")
+    log.debug(s"Starting aggregator actor for ${aggregateType.name} with id $persistenceId")
     // evict from memory if not used for some time
     context.setReceiveTimeout(inMemoryTimeout)
 

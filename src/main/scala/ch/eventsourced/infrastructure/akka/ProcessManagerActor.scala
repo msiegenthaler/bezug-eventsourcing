@@ -22,14 +22,14 @@ class ProcessManagerActor[I, C, E](contextName: String,
   commandDistributor: ActorRef) extends ShardedActor[I] {
   import processManagerType._
 
-  def props(publicRef: ActorRef) = Props(new Process(publicRef))
+  def props(publicRef: ActorRef, id: I, name: CompositeIdentifier) = Props(new Process(publicRef, id, name))
 
   /** Handles EventData messages and starts process instances as needed. */
   def initiator = new ProcessInitator(processManagerType, initiateMessage)
   def registerOn = processManagerType.triggeredBy
 
   def name = CompositeIdentifier(contextName) / "processManager" / processManagerType.name
-  def serializeId(id: I) = processManagerType.serializeId(id)
+  def serializeId(id: Id) = processManagerType.serializeId(id)
   def parseId(value: String) = processManagerType.parseId(value)
 
   def messageSelector = {
@@ -66,7 +66,8 @@ class ProcessManagerActor[I, C, E](contextName: String,
    * - The commands are persistent, because we don't want to send out commands from a new impl when replaying
    * - process is done only if it has no active subscriptions and no pending commands
    */
-  private class Process(publicRef: ActorRef) extends ActorBase with ActorLogging {
+  private class Process(publicRef: ActorRef, id: Id, name: CompositeIdentifier) extends PersistentActor with ActorLogging {
+    val persistenceId = name.serialize
     val commandTarget = context actorOf OrderPreservingAck.props(commandDistributor) {
       case Execute(_, ok, fail) => msg => msg == ok || msg == fail
       case s: SubscribeToAggregate => _ == s.ack
