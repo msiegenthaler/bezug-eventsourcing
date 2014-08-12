@@ -39,7 +39,7 @@ class ContextActor(val definition: BoundedContextBackendType, pubSub: ActorRef, 
     val subscriptions = Map(CompositeIdentifier("pubSub") -> publisher) ++
       inititorsFor(aggregateType)
 
-    val manager = new AggregateActor(definition.name, aggregateType, subscriptions)(config.aggregateTimeout)
+    val manager = new AggregateActor(definition.name, aggregateType, subscriptions)
     val actor: ActorRef = ??? // TODO start with sharding
     (manager, actor)
   }

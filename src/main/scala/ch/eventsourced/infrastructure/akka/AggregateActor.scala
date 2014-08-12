@@ -3,7 +3,6 @@ package ch.eventsourced.infrastructure.akka
 import scala.collection.immutable.Queue
 import scala.concurrent.duration._
 import akka.actor._
-import akka.contrib.pattern.ShardRegion.Passivate
 import akka.persistence.{PersistentActor, RecoveryCompleted}
 import scalaz._
 import ch.eventsourced.api.{EventData, AggregateKey, AggregateType}
@@ -50,13 +49,10 @@ object AggregateActor {
  * - Aggregate type subscriptions: Use the 'eventSubscriptions' parameter. Will receive events from all aggregates
  * of this type. The state is persistent (which events were already handled).
  * In both cases the events will be sent as AggregateEvent.
- *
- * When an aggregate has not received commands for some time it is removed from memory. At the next command
- * it is again constructed from the persistent events in the event store. This is transparent to the user.
  */
 class AggregateActor[I, C, E](contextName: String,
   val aggregateType: AggregateType {type Id = I; type Command = C; type Error = E},
-  eventSubscriptions: Map[SubscriptionId, ActorRef])(inMemoryTimeout: Duration = 5.minutes) extends ShardedActor[I] {
+  eventSubscriptions: Map[SubscriptionId, ActorRef]) extends ShardedActor[I] {
   import aggregateType._
 
   def name = CompositeIdentifier(contextName) / "aggregate" / aggregateType.name
@@ -95,8 +91,6 @@ class AggregateActor[I, C, E](contextName: String,
     }
 
     log.debug(s"Starting aggregator actor for ${aggregateType.name} with id $persistenceId")
-    // evict from memory if not used for some time
-    context.setReceiveTimeout(inMemoryTimeout)
 
     def receiveCommand = {
       case Execute(Command(`id`, cmd), success, fail) =>
@@ -129,12 +123,10 @@ class AggregateActor[I, C, E](contextName: String,
       case s: SubscribeToAggregate => subscriptionManager ! s
       case s: UnsubscribeFromAggregate => subscriptionManager ! s
 
-      case ReceiveTimeout =>
-        //ensure that we have no pending messages
-        log.debug(s"Passivation initiated (due to timeout)")
-        context.parent ! Passivate(PassivateAggregateRoot)
-      case PassivateAggregateRoot =>
-        log.debug(s"Passivation completed, actor will stop")
+      case RequestPassivation(yes, no) =>
+        //TODO if no outstanding acks then yes, else no
+        sender() ! no
+      case Passivate =>
         context stop self
     }
 

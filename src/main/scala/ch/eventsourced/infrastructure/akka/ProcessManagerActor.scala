@@ -126,6 +126,12 @@ class ProcessManagerActor[I, C, E](contextName: String,
       case AggregateEvent(subId, event, ack) if !activeSubscriptions.contains(subId) =>
         //unrequested event, try to remove the subscription
         removeSubscription(subId, event.aggregateKey)
+
+      case RequestPassivation(yes, no) =>
+        //TODO if no outstanding acks (commands, subscriptions) then yes, else no
+        sender() ! no
+      case Passivate =>
+        context stop self
     }
 
     // From Journal

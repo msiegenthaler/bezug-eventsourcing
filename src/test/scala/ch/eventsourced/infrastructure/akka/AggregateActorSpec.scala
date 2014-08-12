@@ -12,8 +12,8 @@ class AggregateActorSpec extends AbstractSpec {
   val eventHandler = TestProbe()
   val manager = {
     val subs = Map(CompositeIdentifier("testProbe") -> eventHandler.ref)
-    val aa = new AggregateActor("AggregateActorSpec", counter, subs)(inMemoryTimeout = 3.seconds)
-    system actorOf LocalSharder.props(aa)
+    val aa = new AggregateActor("AggregateActorSpec", counter, subs)
+    system actorOf LocalSharder.props(aa) //TODO (inMemoryTimeout = 3.seconds)
   }
 
   implicit val timeout = Timeout(1.seconds)
