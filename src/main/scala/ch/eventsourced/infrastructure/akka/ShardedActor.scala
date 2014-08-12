@@ -3,6 +3,13 @@ package ch.eventsourced.infrastructure.akka
 import akka.actor._
 import ch.eventsourced.support.CompositeIdentifier
 
+/**
+ * (Persitent) actor that can be sharded across multiple machines.
+ * Sharding takes care of:
+ * - Starting of an actor instances when a message for it arrives
+ * - Passivation (stopping) of running actor instances when they have not received messages for some time (to free the memory)
+ * - Making sure that the actors that did not passivate normally are restarted (without a message) at the next system start
+ */
 trait ShardedActor[Id] {
   def name: CompositeIdentifier
 
