@@ -6,24 +6,27 @@ import ch.eventsourced.support.GuidAggregateType
 object Faktura extends GuidAggregateType {
   def name = "Faktura"
 
+  case class Grundlagen(fremdreferenz: String, versandInnerhalb: DatumBereich, art: String)
+
   sealed trait Command {
     def faktura: Id
   }
   case class FakturaBeauftragen(schuldner: Person, register: Register, steuerjahr: Jahr,
-    valuta: Datum, fremdreferenz: String, positionen: Traversable[FakturaBeauftragen.Position],
+    valuta: Datum, grundlagen: Grundlagen, positionen: Traversable[FakturaBeauftragen.Position],
     faktura: Id = generateId)
     extends Command
   object FakturaBeauftragen {
-    case class Position(institution: Institution, kategorie: Kategorie, betrag: Betrag)
+    case class Position(institution: Institution, kategorie: KatId, betrag: Betrag)
   }
 
   sealed trait Event
   case class FakturaKopfErstellt(kopf: FakturaKopf) extends Event
   case class FakturaPositionHinzugefügt(position: FakturaPosition) extends Event
+  case class FakturaVervollständigt(kopf: FakturaKopf, positionen: Seq[FakturaPosition]) extends Event
 
   case class FakturaKopf(person: Person, register: Register, steuerjahr: Jahr,
-    valuta: Datum, fremdreferenz: String)
-  case class FakturaPosition(institution: Institution, kategorie: Kategorie, betrag: Betrag)
+    valuta: Datum, grundlagen: Grundlagen)
+  case class FakturaPosition(institution: Institution, kategorie: KatId, betrag: Betrag)
 
   sealed trait Error
   protected def types = typeInfo
@@ -33,12 +36,11 @@ object Faktura extends GuidAggregateType {
   case class EmptyFaktura(id: Id) extends FakturaLike {
     def execute(c: Command) = c match {
       case f: FakturaBeauftragen =>
-        val kopf = FakturaKopf(f.schuldner, f.register, f.steuerjahr, f.valuta, f.fremdreferenz)
-        val positionen = f.positionen.map { p =>
-          val pos = FakturaPosition(p.institution, p.kategorie, p.betrag)
-          FakturaPositionHinzugefügt(pos)
-        }.toSeq
-        FakturaKopfErstellt(kopf) +: positionen
+        val kopf = FakturaKopf(f.schuldner, f.register, f.steuerjahr, f.valuta, f.grundlagen)
+        val positionen = f.positionen.map { p => FakturaPosition(p.institution, p.kategorie, p.betrag)}.toSeq
+        FakturaKopfErstellt(kopf) +:
+          positionen.map(FakturaPositionHinzugefügt(_)) :+
+          FakturaVervollständigt(kopf, positionen)
     }
     def applyEvent = {
       case FakturaKopfErstellt(kopf) => Faktura(id, kopf, Nil)
@@ -49,6 +51,7 @@ object Faktura extends GuidAggregateType {
     def execute(c: Command) = ???
     def applyEvent = {
       case FakturaPositionHinzugefügt(pos) => copy(positionen = positionen :+ pos)
+      case _: FakturaVervollständigt => this
     }
   }
 
