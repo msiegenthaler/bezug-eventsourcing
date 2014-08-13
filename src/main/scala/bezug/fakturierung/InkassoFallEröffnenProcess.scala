@@ -1,67 +1,49 @@
 package bezug.fakturierung
 
-import bezug.debitor.{Buchung, Debitor, InkassoFall}
-import bezug.fakturierung.Faktura.{FakturaKopf, FakturaKopfErstellt}
-import bezug.fakturierung.Schuldner.FakturaFallErstellt
+import bezug.debitor.Debitor
+import bezug.debitor.Debitor.InkassoFallEröffnet
+import bezug.fakturierung.Schuldner.{FakturaFall, FakturaFallErstellt}
 import ch.eventsourced.api.ProcessManager.Subscribe
 import ch.eventsourced.support.GuidProcessManagerType
 
+/** Wenn ein neuer FakturaFall erstellt wird, dann für diesen einen InkassoFall erstellen und den InkassoFall dem
+  * FakturaFall zuordnen
+  */
 object InkassoFallEröffnenProcess extends GuidProcessManagerType {
   def name = "InkassoFallEröffnen(Fakturierung)"
 
   def triggeredBy = Set(Faktura)
   def initiate = {
-    case Faktura.EventData(id, _, FakturaKopfErstellt(kopf)) =>
+    case Schuldner.EventData(_, _, FakturaFallErstellt(id, _, _, _)) =>
       Id(id.guid)
   }
 
   type Command = Any
   type Error = Nothing
   sealed trait Transition
-  case class Step1To2(fakutura: Faktura.Id, kopf: FakturaKopf) extends Transition
+  case class ToInkassoFallZuordnen(schuldner: Schuldner.Id, faktura: Faktura.Id, fakturaFall: FakturaFall.Id) extends Transition
 
   sealed trait Manager extends BaseManager
-  /** Neue Faktura zu Schuldner hinzufügen. */
-  case class Step1(id: Id) extends Manager {
+  case class ZuDebitorHinzufügen(id: Id) extends Manager {
     def handle = {
-      case Faktura.EventData(id, _, FakturaKopfErstellt(kopf)) =>
-        val cmd = Schuldner.FakturaHinzufügen(id, kopf.person, kopf.register, kopf.steuerjahr)
-        Continue(Step1To2(id, kopf)) +
+      case Schuldner.EventData(schuldner, _, event: FakturaFallErstellt) =>
+        val cmd = Debitor.InkassoFallEröffnen(event.person, event.register, event.steuerjahr, event.fall)
+        Continue(ToInkassoFallZuordnen(schuldner, event.aufgrund, event.fall)) +
           cmd +
-          Subscribe(Schuldner.AggregateKey(cmd.schuldner))
+          Subscribe(Debitor.AggregateKey(cmd.debitor))
     }
     def applyTransition = {
-      case Step1To2(faktura, kopf) => Step2(id, faktura, kopf)
+      case ToInkassoFallZuordnen(schuldner, faktura, fall) => InkassoFallZuordnen(id, schuldner, faktura, fall)
     }
   }
-  /** - InkassoFall für FakturaGruppe erstellen, falls nötig.
-    * -  */
-  case class Step2(id: Id, faktura: Faktura.Id, kopf: FakturaKopf) extends Manager {
+  case class InkassoFallZuordnen(id: Id, schuldner: Schuldner.Id, faktura: Faktura.Id, fakturaFall: FakturaFall.Id) extends Manager {
     def handle = {
-      case Schuldner.Event(FakturaFallErstellt(id, person, register, steuerjahr)) =>
+      case Debitor.Event(InkassoFallEröffnet(inkassoFall, `fakturaFall`)) =>
         Completed() +
-          Debitor.InkassoFallEröffnen(person, register, steuerjahr)
-      case Schuldner.Event(FakturaFallErstellt(id, person, register, steuerjahr)) =>
-        Completed() +
-          Debitor.InkassoFallEröffnen(person, register, steuerjahr)
+          Schuldner.InkassoFallZuordnen(schuldner, fakturaFall, inkassoFall)
     }
-    def applyTransition = {
-      case _ => ???
-    }
-  }
+    def applyTransition = PartialFunction.empty
 
-  /*
-  case class Manager22(id: Id) extends BaseManager {
-    def handle = {
-      case Schuldner.Event(FakturaGruppeErstellt(id, person, register, steuerjahr)) =>
-        Debitor.InkassoFallEröffnen(person, register, steuerjahr)
-
-      case Debitor.InkassoFallEröffnet(inkassofall) =>
-        Buchung.Buchen()
-      //TODO faktura buchen
-    }
-    def applyTransition = ???
   }
-  def seed(id: Id) = Manager(id)
-  */
+  def seed(id: Id) = ZuDebitorHinzufügen(id)
 }
