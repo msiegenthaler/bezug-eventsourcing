@@ -1,26 +1,63 @@
 package bezug
 package fakturierung
 
-import bezug.fakturierung.Faktura.FakturaKopfErstellt
+import bezug.debitor.{Buchung, InkassoFall, Debitor}
+import bezug.fakturierung.Faktura.{FakturaKopf, FakturaKopfErstellt}
+import bezug.fakturierung.Schuldner.{InkassoFallZugeordnet, FakturaFall, FakturaFallErstellt}
+import ch.eventsourced.api.ProcessManager.{Unsubscribe, Subscribe}
 import ch.eventsourced.support.GuidProcessManagerType
 
 object FakturaErstellenProcess extends GuidProcessManagerType {
   def name = "FakturaErstellen"
 
-  type Command = Schuldner.Command
-  type Error = Nothing
+  def seed(id: Id) = FakturaHinzufügenZuSchuldner(id)
 
   def triggeredBy = Set(Faktura)
   def initiate = {
     case Faktura.EventData(id, _, FakturaKopfErstellt(kopf)) =>
       Id(id.guid)
   }
-  def seed(id: Id) = Manager(id)
 
-  case class Manager(id: Id) extends BaseManager {
+  type Command = Any
+  type Error = Nothing
+  sealed trait Transition
+  case class ToFakturaFallErmitteln(fakutura: Faktura.Id, kopf: FakturaKopf) extends Transition
+  case class ToBuchungErstellen(fakturaFall: FakturaFall.Id) extends Transition
+
+  sealed trait Manager extends BaseManager
+
+  case class FakturaHinzufügenZuSchuldner(id: Id) extends Manager {
     def handle = {
-      case Faktura.EventData(id, _, FakturaKopfErstellt(kopf)) =>
-        Completed() + Schuldner.FakturaHinzufügen(id, kopf.person, kopf.register, kopf.steuerjahr)
+      case Faktura.EventData(faktura, _, FakturaKopfErstellt(kopf)) =>
+        val cmd = Schuldner.FakturaHinzufügen(faktura, kopf.person, kopf.register, kopf.steuerjahr)
+        Continue(ToFakturaFallErmitteln(faktura, kopf)) +
+          cmd +
+          Subscribe(Schuldner.AggregateKey(cmd.schuldner))
+    }
+    def applyTransition = {
+      case ToFakturaFallErmitteln(faktura, kopf) => FakturaFallErmitteln(id, faktura, kopf)
+    }
+  }
+
+  case class FakturaFallErmitteln(id: Id, faktura: Faktura.Id, kopf: FakturaKopf) extends Manager {
+    def handle = {
+      case Schuldner.EventData(schuldner, _, FakturaFallErstellt(fall, person, register, steuerjahr, `faktura`)) =>
+        Continue(ToBuchungErstellen(fall)) +
+          //Alle Events vom Schuldner nochmals empfangen
+          Unsubscribe(Schuldner.AggregateKey(schuldner)) +
+          Subscribe(Schuldner.AggregateKey(schuldner))
+    }
+    def applyTransition = {
+      case ToBuchungErstellen(fakturaFall) => BuchungErstellen(id, faktura, kopf, fakturaFall)
+    }
+  }
+
+  case class BuchungErstellen(id: Id, faktura: Faktura.Id, kopf: FakturaKopf, fakturaFall: FakturaFall.Id) extends Manager {
+    def handle = {
+      case Schuldner.Event(InkassoFallZugeordnet(`fakturaFall`, inkassoFall)) =>
+        val positionen = ???
+        val cmd = Buchung.Buchen(kopf.valuta, ???, positionen)
+        Completed() + cmd
     }
     def applyTransition = PartialFunction.empty
   }
