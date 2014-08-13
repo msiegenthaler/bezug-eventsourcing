@@ -14,8 +14,8 @@ object InkassoFallEröffnenProcess extends GuidProcessManagerType {
 
   def triggeredBy = Set(Faktura)
   def initiate = {
-    case Schuldner.EventData(_, _, FakturaFallErstellt(id, _, _, _)) =>
-      Id(id.guid)
+    case Schuldner.EventData(_, _, e: FakturaFallErstellt) =>
+      Id(e.fall.guid)
   }
 
   type Command = Any

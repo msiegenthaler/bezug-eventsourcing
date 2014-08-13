@@ -17,7 +17,7 @@ object Buchung extends GuidAggregateType {
         groupBy(p => (p.soll, p.haben)).
         map {
         case ((soll, haben), positionen) =>
-          Position(soll, haben, positionen.map(_.betrag).sum)
+          Position(soll, haben, positionen.map(_.betrag).reduce(_ + _))
       }
     }
   }
@@ -36,11 +36,11 @@ object Buchung extends GuidAggregateType {
     extends Event
   sealed trait Error
 
-  
+
   sealed trait Root extends RootBase
   def seed(id: Buchung.Id) = EmptyBuchung(id)
   case class EmptyBuchung(id: Id) extends Root {
-    def execute(c: Command) = {
+    def execute(c: Command) = c match {
       case Buchen(valuta, urbeleg, positionen, _) =>
         Gebucht(Zeitpunkt.now, valuta, urbeleg, positionen)
     }

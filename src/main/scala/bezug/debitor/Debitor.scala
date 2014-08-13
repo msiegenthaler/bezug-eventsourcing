@@ -28,13 +28,13 @@ object Debitor extends AggregateType {
 
   type Root = Debitor
   case class Debitor(id: Id, person: Person.Id, inkassoFälle: Seq[InkassoFall.Id]) extends RootBase {
-    def execute(c: Command) = {
+    def execute(c: Command) = c match {
       case InkassoFallEröffnen(_, register, steuerjahr, referenz) => InkassoFallErstellenVorbereitet(register, steuerjahr, referenz)
       case InkassoFallHinzufügen(_, inkassoFall, referenz: Any) => InkassoFallEröffnet(inkassoFall, referenz)
     }
     def applyEvent = {
       case _: InkassoFallErstellenVorbereitet => this
-      case InkassoFallEröffnet(inkassoFall) => copy(inkassoFälle = inkassoFälle :+ inkassoFall)
+      case InkassoFallEröffnet(inkassoFall, _) => copy(inkassoFälle = inkassoFälle :+ inkassoFall)
     }
   }
   def seed(id: Id) = Debitor(id, id.person, Nil)

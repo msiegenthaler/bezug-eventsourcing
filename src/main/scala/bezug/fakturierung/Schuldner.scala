@@ -48,12 +48,12 @@ object Schuldner extends AggregateType {
           }
         } else neueGruppe
 
-      case InkassoFallZuordnen(`id`, fallId, inkassoFall) =>
+      case InkassoFallZuordnen(_, fallId, inkassoFall) =>
         InkassoFallZugeordnet(fallId, inkassoFall)
     }
 
     def applyEvent = {
-      case FakturaFallErstellt(gruppeId, _, register, steuerjahr) =>
+      case FakturaFallErstellt(gruppeId, _, register, steuerjahr, _) =>
         copy(fälle = fälle + (gruppeId -> FakturaFall(gruppeId, register, steuerjahr, None, Seq
           .empty)))
       case FakturaHinzugefügt(zu, faktura) =>

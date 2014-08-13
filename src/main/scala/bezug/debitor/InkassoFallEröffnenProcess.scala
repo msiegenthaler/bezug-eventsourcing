@@ -10,7 +10,7 @@ class InkassoFallEröffnenProcess extends GuidProcessManagerType {
   def triggeredBy = Set(Debitor)
 
   def initiate = {
-    case Debitor.Event(InkassoFallErstellenVorbereitet(_, _)) => generateId
+    case Debitor.Event(_: InkassoFallErstellenVorbereitet) => generateId
   }
   type Command = Any
   type Error = Nothing
