@@ -14,23 +14,23 @@ object Debitor extends AggregateType {
   sealed trait Command {
     def debitor: Id
   }
-  case class InkassoFallEröffnen(person: Person.Id, register: Register, steuerjahr: Jahr) extends Command {
+  case class InkassoFallEröffnen(person: Person.Id, register: Register, steuerjahr: Jahr, referenz: Any) extends Command {
     def debitor = Id(person)
   }
-  case class InkassoFallHinzufügen(debitor: Id, inkassofall: InkassoFall.Id) extends Command
+  case class InkassoFallHinzufügen(debitor: Id, inkassofall: InkassoFall.Id, referenz: Any) extends Command
   def aggregateIdForCommand(command: Command) = Some(command.debitor)
 
   sealed trait Event
-  case class InkassoFallErstellenVorbereitet(register: Register, steuerjahr: Jahr) extends Event
-  case class InkassoFallEröffnet(inkassoFall: InkassoFall.Id) extends Event
+  case class InkassoFallErstellenVorbereitet(register: Register, steuerjahr: Jahr, referenz: Any) extends Event
+  case class InkassoFallEröffnet(inkassoFall: InkassoFall.Id, referenz: Any) extends Event
 
   type Error = this.type
 
   type Root = Debitor
   case class Debitor(id: Id, person: Person.Id, inkassoFälle: Seq[InkassoFall.Id]) extends RootBase {
     def execute(c: Command) = {
-      case InkassoFallEröffnen(_, register, steuerjahr) => InkassoFallErstellenVorbereitet(register, steuerjahr)
-      case InkassoFallHinzufügen(_, inkassoFall) => InkassoFallEröffnet(inkassoFall)
+      case InkassoFallEröffnen(_, register, steuerjahr, referenz) => InkassoFallErstellenVorbereitet(register, steuerjahr, referenz)
+      case InkassoFallHinzufügen(_, inkassoFall, referenz: Any) => InkassoFallEröffnet(inkassoFall, referenz)
     }
     def applyEvent = {
       case _: InkassoFallErstellenVorbereitet => this

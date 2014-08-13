@@ -15,26 +15,26 @@ class InkassoFallEröffnenProcess extends GuidProcessManagerType {
   type Command = Any
   type Error = Nothing
   sealed trait Transition
-  case class MitInkassoFall(inkassoFall: InkassoFall.Id) extends Transition
+  case class MitInkassoFall(inkassoFall: InkassoFall.Id, referenz: Any) extends Transition
 
   sealed trait Manager extends BaseManager
   case class Step1(id: Id) extends Manager {
     def handle = {
-      case Debitor.EventData(debitorId, _, InkassoFallErstellenVorbereitet(register, steuerjahr)) =>
+      case Debitor.EventData(debitorId, _, InkassoFallErstellenVorbereitet(register, steuerjahr, referenz)) =>
         val eröffnen = InkassoFall.Eröffnen(debitorId, register, steuerjahr)
-        Continue(MitInkassoFall(eröffnen.inkassoFall)) +
+        Continue(MitInkassoFall(eröffnen.inkassoFall, referenz)) +
           eröffnen +
           Unsubscribe(Debitor.AggregateKey(debitorId)) +
           Subscribe(InkassoFall.AggregateKey(eröffnen.inkassoFall))
     }
     def applyTransition = {
-      case MitInkassoFall(i) => Step2(id, i)
+      case MitInkassoFall(fall, ref) => Step2(id, fall, ref)
     }
   }
-  case class Step2(id: Id, inkassoFall: InkassoFall.Id) extends Manager {
+  case class Step2(id: Id, inkassoFall: InkassoFall.Id, referenz: Any) extends Manager {
     def handle = {
       case InkassoFall.Event(Eröffnet(debitor, _, _)) =>
-        Completed() + Debitor.InkassoFallHinzufügen(debitor, inkassoFall)
+        Completed() + Debitor.InkassoFallHinzufügen(debitor, inkassoFall, referenz)
     }
     def applyTransition = PartialFunction.empty
   }
