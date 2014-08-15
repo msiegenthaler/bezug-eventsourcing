@@ -6,6 +6,7 @@ import akka.actor._
 import akka.actor.SupervisorStrategy.Escalate
 import akka.persistence.{RecoveryCompleted, PersistentActor}
 import ch.eventsourced.api.EventData
+import ch.eventsourced.support.CompositeIdentifier
 import ch.eventsourced.infrastructure.akka.AggregateActor.{AggregateEvent, SubscriptionId}
 
 /**
@@ -34,7 +35,7 @@ object AggregateSubscription {
   }
   private class SubscriptionActor(id: SubscriptionId, partition: String, journalReplay: (Long, Long) => Props,
     _target: ActorRef, start: Long = 0) extends PersistentActor with ActorLogging with Stash {
-    def persistenceId = s"AggregateSubscription/$id/$partition"
+    def persistenceId = (CompositeIdentifier("AggregateSubscription") / id / partition).serialize
     private var pos = start - 1
     private var buffer = SortedSet.empty[EventData]
 

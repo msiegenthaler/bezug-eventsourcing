@@ -78,7 +78,7 @@ class AggregateActor[I, C, E](contextName: String,
 
     val subscriptionManager = {
       def journalProps(from: Long, until: Long) = journalReplay.props(id, persistenceId, from, until)
-      val props = AggregateSubscriptionManager.props(persistenceId, journalProps)
+      val props = AggregateSubscriptionManager.props(name, journalProps)
       val mgr = context.actorOf(props, "SubscriptionManager")
       eventSubscriptions foreach {
         case (subId, target) => mgr ! AddManualSubscription(subId, persistenceId, target)
