@@ -1,5 +1,6 @@
 package ch.eventsourced.infrastructure.akka
 
+import akka.actor.{ActorRef, Actor, Props}
 import akka.testkit.TestProbe
 import akka.util.Timeout
 import ch.eventsourced.api.EventData
@@ -10,17 +11,29 @@ import scala.concurrent.duration._
 
 class AggregateActorSpec extends AbstractSpec {
   val eventHandler = TestProbe()
-  val manager = {
+  def startAggregate(id: counter.Id) = {
     val subs = Map(CompositeIdentifier("testProbe") -> eventHandler.ref)
     val aa = new AggregateActor("AggregateActorSpec", counter, subs)
-    system actorOf LocalSharder.props(aa) //TODO (inMemoryTimeout = 3.seconds)
+
+    val runner = Props(new Actor {
+      val a = context actorOf aa.props(context.self, id, CompositeIdentifier(counter.serializeId(id)))
+      def receive = {
+        case msg => a forward msg
+      }
+    })
+    system actorOf runner
   }
 
   implicit val timeout = Timeout(1.seconds)
 
-  def executeSuccess(cmd: counter.Command) = {
-    manager ! Execute(cmd, "ok", (e: counter.Error) => s"fail: $e")
-    expectMsg(5.seconds, "ok")
+  implicit class RichAggregate(a: ActorRef) {
+    def executeSuccess(cmd: counter.Command) = {
+      a ! Execute(cmd, "ok", (e: counter.Error) => s"fail: $e")
+      expectMsg(5.seconds, "ok")
+    }
+    def kill(id: counter.Id) = {
+      a ! Execute(Kill(id), (), (_: counter.Error) => ())
+    }
   }
 
   def expectNoEvent() = eventHandler.expectNoMsg()
@@ -30,81 +43,88 @@ class AggregateActorSpec extends AbstractSpec {
       if (doAck) eventHandler.reply(ack)
   }
 
-  def killManager(id: counter.Id) = manager ! Execute(Kill(id), (), (_: counter.Error) => ())
 
   "aggregate manager" must {
     import ch.eventsourced.infrastructure.akka.counter._
 
     "create a new aggregate root for never used id" in {
-      executeSuccess(Initialize())
+      val init = Initialize()
+      val aggregate = startAggregate(init.counter)
+      aggregate.executeSuccess(init)
 
       expectNoEvent()
     }
 
     "preserve state between invocations" in {
       val init = Initialize()
-      executeSuccess(init)
+      val aggregate = startAggregate(init.counter)
+      aggregate.executeSuccess(init)
 
-      executeSuccess(Increment(init.counter))
+      aggregate.executeSuccess(Increment(init.counter))
       expectEvent(counter.Event.Data(init.counter, 0, Incremented(1)))
       expectNoEvents()
 
-      executeSuccess(Increment(init.counter))
+      aggregate.executeSuccess(Increment(init.counter))
       expectEvent(counter.Event.Data(init.counter, 1, Incremented(2)))
       expectNoEvents()
     }
 
     "preserve state if killed" in {
       val init = Initialize()
-      executeSuccess(init)
+      val aggregate = startAggregate(init.counter)
+      aggregate.executeSuccess(init)
 
-      executeSuccess(Increment(init.counter))
+      aggregate.executeSuccess(Increment(init.counter))
       expectEvent(counter.Event.Data(init.counter, 0, Incremented(1)))
       expectNoEvents()
 
-      manager ! Kill(init.counter)
+      aggregate.kill(init.counter)
 
-      executeSuccess(Increment(init.counter))
+      aggregate.executeSuccess(Increment(init.counter))
       expectEvent(counter.Event.Data(init.counter, 1, Incremented(2)))
       expectNoEvents()
     }
 
     "preserve state if killed after more messages" in {
       val init = Initialize()
-      executeSuccess(init)
+      val aggregate = startAggregate(init.counter)
+      aggregate.executeSuccess(init)
 
-      executeSuccess(Increment(init.counter))
-      executeSuccess(Increment(init.counter))
+      aggregate.executeSuccess(Increment(init.counter))
+      aggregate.executeSuccess(Increment(init.counter))
       expectEvent(counter.Event.Data(init.counter, 0, Incremented(1)))
       expectEvent(counter.Event.Data(init.counter, 1, Incremented(2)))
       expectNoEvents()
 
-      killManager(init.counter)
+      aggregate.kill(init.counter)
 
-      executeSuccess(Increment(init.counter))
+      aggregate.executeSuccess(Increment(init.counter))
       expectEvent(counter.Event.Data(init.counter, 2, Incremented(3)))
       expectNoEvents()
     }
 
+    //TODO this is wrong
     "preserve state if passivated" in {
       val init = Initialize()
-      executeSuccess(init)
+      val aggregate = startAggregate(init.counter)
+      aggregate.executeSuccess(init)
 
-      executeSuccess(Increment(init.counter))
+      aggregate.executeSuccess(Increment(init.counter))
       expectEvent(counter.Event.Data(init.counter, 0, Incremented(1)))
       expectNoEvents()
 
       Thread.sleep(5.seconds.toMillis)
 
-      executeSuccess(Increment(init.counter))
+      aggregate.executeSuccess(Increment(init.counter))
       expectEvent(counter.Event.Data(init.counter, 1, Incremented(2)))
       expectNoEvents()
     }
 
     "retry to redeliver not acked event to eventHandler" in {
       val init = Initialize()
-      executeSuccess(init)
-      executeSuccess(Increment(init.counter))
+      val aggregate = startAggregate(init.counter)
+      aggregate.executeSuccess(init)
+      aggregate.executeSuccess(Increment(init.counter))
       expectEvent(counter.Event.Data(init.counter, 0, Incremented(1)), doAck = false)
       expectNoEvents()
 
@@ -116,12 +136,13 @@ class AggregateActorSpec extends AbstractSpec {
 
     "redeliver not acked event to eventHandler on restart" in {
       val init = Initialize()
-      executeSuccess(init)
-      executeSuccess(Increment(init.counter))
+      val aggregate = startAggregate(init.counter)
+      aggregate.executeSuccess(init)
+      aggregate.executeSuccess(Increment(init.counter))
       expectEvent(counter.Event.Data(init.counter, 0, Incremented(1)), doAck = false)
       expectNoEvents()
 
-      killManager(init.counter)
+      aggregate.kill(init.counter)
 
       expectEvent(counter.Event.Data(init.counter, 0, Incremented(1)))
       expectNoEvents()
@@ -129,12 +150,13 @@ class AggregateActorSpec extends AbstractSpec {
 
     "preserve order in redelivers" in {
       val init = Initialize()
-      executeSuccess(init)
-      executeSuccess(Increment(init.counter))
+      val aggregate = startAggregate(init.counter)
+      aggregate.executeSuccess(init)
+      aggregate.executeSuccess(Increment(init.counter))
       expectEvent(counter.Event.Data(init.counter, 0, Incremented(1)), doAck = false)
       expectNoEvents()
 
-      executeSuccess(Increment(init.counter))
+      aggregate.executeSuccess(Increment(init.counter))
       expectNoEvents()
 
       expectEvent(counter.Event.Data(init.counter, 0, Incremented(1)))
@@ -144,15 +166,16 @@ class AggregateActorSpec extends AbstractSpec {
 
     "preserve order in redelivers after restart" in {
       val init = Initialize()
-      executeSuccess(init)
-      executeSuccess(Increment(init.counter))
+      val aggregate = startAggregate(init.counter)
+      aggregate.executeSuccess(init)
+      aggregate.executeSuccess(Increment(init.counter))
       expectEvent(counter.Event.Data(init.counter, 0, Incremented(1)), doAck = false)
       expectNoEvents()
 
-      executeSuccess(Increment(init.counter))
+      aggregate.executeSuccess(Increment(init.counter))
       expectNoEvents()
 
-      killManager(init.counter)
+      aggregate.kill(init.counter)
 
       expectEvent(counter.Event.Data(init.counter, 0, Incremented(1)))
       expectEvent(counter.Event.Data(init.counter, 1, Incremented(2)))
@@ -161,16 +184,17 @@ class AggregateActorSpec extends AbstractSpec {
 
     "preserve order in redelivers after restart with new commands" in {
       val init = Initialize()
-      executeSuccess(init)
-      executeSuccess(Increment(init.counter))
+      val aggregate = startAggregate(init.counter)
+      aggregate.executeSuccess(init)
+      aggregate.executeSuccess(Increment(init.counter))
       expectEvent(counter.Event.Data(init.counter, 0, Incremented(1)), doAck = false)
       expectNoEvents()
 
-      executeSuccess(Increment(init.counter))
+      aggregate.executeSuccess(Increment(init.counter))
       expectNoEvents()
 
-      killManager(init.counter)
-      executeSuccess(Increment(init.counter))
+      aggregate.kill(init.counter)
+      aggregate.executeSuccess(Increment(init.counter))
 
       expectEvent(counter.Event.Data(init.counter, 0, Incremented(1)))
       expectEvent(counter.Event.Data(init.counter, 1, Incremented(2)))
@@ -180,15 +204,16 @@ class AggregateActorSpec extends AbstractSpec {
 
     "do not redeliver acked events on restart" in {
       val init = Initialize()
-      executeSuccess(init)
-      executeSuccess(Increment(init.counter))
+      val aggregate = startAggregate(init.counter)
+      aggregate.executeSuccess(init)
+      aggregate.executeSuccess(Increment(init.counter))
       expectEvent(counter.Event.Data(init.counter, 0, Incremented(1)))
-      executeSuccess(Increment(init.counter))
+      aggregate.executeSuccess(Increment(init.counter))
       expectEvent(counter.Event.Data(init.counter, 1, Incremented(2)), doAck = false)
-      executeSuccess(Increment(init.counter))
+      aggregate.executeSuccess(Increment(init.counter))
       expectNoEvents()
 
-      killManager(init.counter)
+      aggregate.kill(init.counter)
 
       expectEvent(counter.Event.Data(init.counter, 1, Incremented(2)))
       expectEvent(counter.Event.Data(init.counter, 2, Incremented(3)))
@@ -197,22 +222,23 @@ class AggregateActorSpec extends AbstractSpec {
 
     "do not redeliver later acked events after next restart" in {
       val init = Initialize()
-      executeSuccess(init)
-      executeSuccess(Increment(init.counter))
+      val aggregate = startAggregate(init.counter)
+      aggregate.executeSuccess(init)
+      aggregate.executeSuccess(Increment(init.counter))
       expectEvent(counter.Event.Data(init.counter, 0, Incremented(1)), doAck = false)
       expectNoEvents()
 
-      killManager(init.counter)
+      aggregate.kill(init.counter)
       expectEvent(counter.Event.Data(init.counter, 0, Incremented(1)))
-      executeSuccess(Increment(init.counter))
+      aggregate.executeSuccess(Increment(init.counter))
       expectEvent(counter.Event.Data(init.counter, 1, Incremented(2)), doAck = false)
       expectNoEvents()
 
-      killManager(init.counter)
+      aggregate.kill(init.counter)
       expectEvent(counter.Event.Data(init.counter, 1, Incremented(2)))
       expectNoEvents()
 
-      executeSuccess(Increment(init.counter))
+      aggregate.executeSuccess(Increment(init.counter))
       expectEvent(counter.Event.Data(init.counter, 2, Incremented(3)))
     }
   }
