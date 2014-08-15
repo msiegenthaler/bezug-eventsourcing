@@ -29,8 +29,8 @@ class ProcessManagerActor[I, C, E](contextName: String,
   def registerOn = processManagerType.triggeredBy
 
   def name = CompositeName(contextName) / "processManager" / processManagerType.name
-  def serializeId(id: Id) = processManagerType.serializeId(id)
-  def parseId(value: String) = processManagerType.parseId(value)
+  def serializeId(id: Id) = processManagerType.Id.serialize(id)
+  def parseId(value: String) = processManagerType.Id.parse(value)
 
   def messageSelector = {
     case msg@InitiateProcess(processId, _, _) => processId
@@ -49,7 +49,7 @@ class ProcessManagerActor[I, C, E](contextName: String,
   private[akka] object SubscriptionId {
     def apply(id: Id, key: AggregateKey) = {
       val pm = ProcessManagerActor.this.name / "instance" / serializeId(id)
-      pm / "aggregate" / key.aggregateType.name / key.aggregateType.serializeId(key.id)
+      pm / "aggregate" / key.aggregateType.name / key.aggregateType.Id.serialize(key.id)
     }
     def unapply(id: CompositeName): Option[Id] = id match {
       case CompositeName(`contextName`, "processManager", `name`, "instance", id, "aggregate", _, _) =>

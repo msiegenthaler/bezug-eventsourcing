@@ -56,8 +56,8 @@ class AggregateActor[I, C, E](contextName: String,
   import aggregateType._
 
   def name = CompositeName(contextName) / "aggregate" / aggregateType.name
-  def serializeId(id: I) = aggregateType.serializeId(id)
-  def parseId(value: String) = aggregateType.parseId(value)
+  def serializeId(id: I) = aggregateType.Id.serialize(id)
+  def parseId(value: String) = aggregateType.Id.parse(value)
 
   def messageSelector = {
     case Execute(Command(id, cmd), suc, fail) => id

@@ -1,9 +1,10 @@
 package bezug.debitor
 
 import bezug._
-import ch.eventsourced.support.GuidAggregateType
+import ch.eventsourced.api.AggregateType
+import ch.eventsourced.support.TypedGuid
 
-object Buchung extends GuidAggregateType {
+object Buchung extends AggregateType with TypedGuid {
   def name = "Buchung"
 
   case class Urbeleg(art: BelegartUrbeleg)

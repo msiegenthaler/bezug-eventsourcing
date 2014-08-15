@@ -15,7 +15,7 @@ class AggregateActorSpec extends AbstractSpec {
   val aggregateActor = new AggregateActor("AggregateActorSpec", counter, subs)
   def startAggregate(id: counter.Id) = {
     val runner = Props(new Actor {
-      val a = context actorOf aggregateActor.props(context.self, id, CompositeName(counter.serializeId(id)))
+      val a = context actorOf aggregateActor.props(context.self, id, CompositeName(counter.Id.serialize(id)))
       def receive = {
         case msg => a forward msg
       }

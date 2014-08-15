@@ -1,9 +1,10 @@
 package ch.eventsourced.infrastructure.akka
 
-import ch.eventsourced.support.GuidAggregateType
+import ch.eventsourced.api.AggregateType
+import ch.eventsourced.support.TypedGuid
 
 /** An purchase order (used for tests). */
-object Order extends GuidAggregateType {
+object Order extends AggregateType with TypedGuid {
   def name = "Order"
 
   sealed trait Event

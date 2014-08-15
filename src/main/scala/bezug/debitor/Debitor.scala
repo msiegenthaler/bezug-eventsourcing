@@ -1,21 +1,18 @@
 package bezug
 package debitor
 
-import ch.eventsourced.api.{AggregateType, Entity}
-import ch.eventsourced.support.{GuidAggregateType, Guid}
+import ch.eventsourced.api.AggregateType
+import ch.eventsourced.support.DerivedId
+import Person.Id.stringSerialize
 
-object Debitor extends AggregateType {
+object Debitor extends AggregateType with DerivedId[Person.Id] {
   def name = "Debitor"
-  case class Id(person: Person.Id)
-  def serializeId(id: Id) = id.person.id
-  def parseId(serialized: String) = Some(Id(Person.Id(serialized)))
-
 
   sealed trait Command {
     def debitor: Id
   }
   case class InkassoFallEröffnen(person: Person.Id, register: Register, steuerjahr: Jahr, referenz: Any) extends Command {
-    def debitor = Id(person)
+    def debitor = generateId(person)
   }
   case class InkassoFallHinzufügen(debitor: Id, inkassofall: InkassoFall.Id, referenz: Any) extends Command
   def aggregateIdForCommand(command: Command) = Some(command.debitor)
@@ -37,6 +34,7 @@ object Debitor extends AggregateType {
       case InkassoFallEröffnet(inkassoFall, _) => copy(inkassoFälle = inkassoFälle :+ inkassoFall)
     }
   }
-  def seed(id: Id) = Debitor(id, id.person, Nil)
+  def seed(id: Id) = Debitor(id, id.base, Nil)
+
   protected def types = typeInfo
 }

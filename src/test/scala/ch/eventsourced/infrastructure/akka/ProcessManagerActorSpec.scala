@@ -13,7 +13,7 @@ class ProcessManagerInstanceSpec extends AbstractSpec {
     val orderPmi = new ProcessManagerActor("test", OrderProcess, cmdDist)
     val runner = Props(new Actor {
       val pid = OrderProcess.initiate(Order.EventData(orderId, 0, Order.OrderPlaced(Nil, 0, "")))
-      val pm = context actorOf orderPmi.props(context.self, pid, CompositeName(OrderProcess.serializeId(pid)))
+      val pm = context actorOf orderPmi.props(context.self, pid, CompositeName(OrderProcess.Id.serialize(pid)))
       def receive = {
         case msg => pm forward msg
       }
@@ -308,7 +308,7 @@ class ProcessManagerInstanceSpec extends AbstractSpec {
     "unapply the subscriptionId" in {
       val o = new TestOrder
       val (orderPmi, _) = startPmi(o.id, TestProbe().ref)
-      val id = OrderProcess.Id(o.id.guid)
+      val id = OrderProcess.initiate(Order.EventData(o.id, 0, Order.OrderPlaced(Nil, 0, "")))
       val s = orderPmi.SubscriptionId(id, o.key)
       assert(orderPmi.SubscriptionId.unapply(s) === Some(id))
     }

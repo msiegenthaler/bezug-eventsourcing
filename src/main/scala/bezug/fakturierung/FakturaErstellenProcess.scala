@@ -5,17 +5,17 @@ import bezug.debitor.{Buchung, InkassoFall, Debitor}
 import bezug.fakturierung.Faktura.{FakturaKopf, FakturaKopfErstellt}
 import bezug.fakturierung.Schuldner.{InkassoFallZugeordnet, FakturaFall, FakturaFallErstellt}
 import ch.eventsourced.api.ProcessManager.{Unsubscribe, Subscribe}
-import ch.eventsourced.support.GuidProcessManagerType
+import ch.eventsourced.api.ProcessManagerType
+import ch.eventsourced.support.DerivedId
 
-object FakturaErstellenProcess extends GuidProcessManagerType {
+object FakturaErstellenProcess extends ProcessManagerType with DerivedId[Faktura.Id] {
   def name = "FakturaErstellen"
 
   def seed(id: Id) = FakturaHinzufügenZuSchuldner(id)
 
   def triggeredBy = Set(Faktura)
   def initiate = {
-    case Faktura.EventData(id, _, FakturaKopfErstellt(kopf)) =>
-      Id(id.guid)
+    case Faktura.EventData(id, _, FakturaKopfErstellt(kopf)) => generateId(id)
   }
 
   type Command = Any
@@ -61,4 +61,6 @@ object FakturaErstellenProcess extends GuidProcessManagerType {
     }
     def applyTransition = PartialFunction.empty
   }
+
+  protected def types = typeInfo
 }

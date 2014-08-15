@@ -69,8 +69,15 @@ trait ProcessManagerType {
   def initiate: PartialFunction[EventData, Id]
 
   def seed(id: Id): Manager
-  def serializeId(id: Id): String
-  def parseId(serialized: String): Option[Id]
+
+  object Id {
+    def serialize(id: Id) = types.serialize(id)
+    def parse(string: String) = types.parse(string)
+    implicit def stringSerialize: StringSerialize[Id] = types
+  }
+
+  protected def types: StringSerialize[Id]
+  protected def typeInfo[I >: Id : StringSerialize]: StringSerialize[I] = implicitly
 
   override def toString = name
 }

@@ -3,9 +3,10 @@ package bezug.debitor
 import bezug.debitor.Debitor.InkassoFallErstellenVorbereitet
 import bezug.debitor.InkassoFall.Eröffnet
 import ch.eventsourced.api.ProcessManager.{Unsubscribe, Subscribe}
-import ch.eventsourced.support.GuidProcessManagerType
+import ch.eventsourced.api.ProcessManagerType
+import ch.eventsourced.support.TypedGuid
 
-class InkassoFallEröffnenProcess extends GuidProcessManagerType {
+class InkassoFallEröffnenProcess extends ProcessManagerType with TypedGuid {
   def name = "InkassoFallEröffnen(Debitor)"
   def triggeredBy = Set(Debitor)
 
@@ -39,4 +40,6 @@ class InkassoFallEröffnenProcess extends GuidProcessManagerType {
     def applyTransition = PartialFunction.empty
   }
   def seed(id: Id) = Step1(id)
+
+  protected def types = typeInfo
 }

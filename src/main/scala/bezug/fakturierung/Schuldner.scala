@@ -3,20 +3,17 @@ package fakturierung
 
 import bezug.debitor.InkassoFall
 import ch.eventsourced.api.{AggregateType, Entity}
-import ch.eventsourced.support.Guid
+import ch.eventsourced.support.{DerivedId, TypedGuid}
+import Person.Id.stringSerialize
 
-object Schuldner extends AggregateType {
+object Schuldner extends AggregateType with DerivedId[Person.Id] {
   def name = "Schuldner"
-
-  case class Id(value: Person.Id)
-  def serializeId(id: Id) = id.value.id
-  def parseId(serialized: String) = Some(Id(Person.Id(serialized)))
 
   sealed trait Command {
     def schuldner: Id
   }
   case class FakturaHinzufügen(faktura: Faktura.Id, person: Person, register: Register, steuerjahr: Jahr) extends Command {
-    def schuldner = Id(person.id)
+    def schuldner = generateId(person.id)
   }
   case class InkassoFallZuordnen(schuldner: Id, zu: FakturaFall.Id, inkassoFall: InkassoFall.Id) extends Command
   def aggregateIdForCommand(command: Command) = Some(command.schuldner)
@@ -33,7 +30,7 @@ object Schuldner extends AggregateType {
     def execute(c: Command) = c match {
       case c: FakturaHinzufügen =>
         def neueGruppe = {
-          val gruppeId = FakturaFall.Id(Guid.generate)
+          val gruppeId = FakturaFall.create
           FakturaFallErstellt(gruppeId, c.person.id, c.register, c.steuerjahr, c.faktura) ::
             FakturaHinzugefügt(gruppeId, c.faktura) ::
             Nil
@@ -78,8 +75,8 @@ object Schuldner extends AggregateType {
       copy(inkassoFall = Some(fall))
     }
   }
-  object FakturaFall {
-    case class Id(guid: Guid)
+  object FakturaFall extends TypedGuid {
+    def create = generateId
   }
 
   protected def types = typeInfo

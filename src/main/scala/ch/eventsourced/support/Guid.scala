@@ -3,6 +3,7 @@ package ch.eventsourced.support
 import java.nio.ByteBuffer
 import java.util.UUID
 import scala.util.Try
+import ch.eventsourced.api.StringSerialize
 
 /** Globally unique identifier. */
 final class Guid private(private val upper: Long, private val lower: Long) {
@@ -59,5 +60,10 @@ object Guid {
       val lower = bb.getLong()
       Some(new Guid(upper, lower))
     } else None
+  }
+
+  implicit val stringSerializer = new StringSerialize[Guid] {
+    def serialize(value: Guid) = value.serializeToString
+    def parse(serialized: String) = parseFromString(serialized)
   }
 }

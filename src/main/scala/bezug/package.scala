@@ -1,3 +1,4 @@
+import ch.eventsourced.api.StringSerialize
 package object bezug {
 
   case class Betrag(value: BigDecimal) {
@@ -16,6 +17,12 @@ package object bezug {
   case class Person(id: Person.Id)
   object Person {
     case class Id(id: String)
+    object Id {
+      implicit def stringSerialize: StringSerialize[Id] = new StringSerialize[Id] {
+        def serialize(value: Id) = value.id
+        def parse(serialized: String) = Some(Id(serialized))
+      }
+    }
   }
   case class Institution(id: String)
 

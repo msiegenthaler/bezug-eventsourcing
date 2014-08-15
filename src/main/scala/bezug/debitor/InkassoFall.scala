@@ -1,9 +1,10 @@
 package bezug
 package debitor
 
-import ch.eventsourced.support.GuidAggregateType
+import ch.eventsourced.api.AggregateType
+import ch.eventsourced.support.TypedGuid
 
-object InkassoFall extends GuidAggregateType {
+object InkassoFall extends AggregateType with TypedGuid {
   def name = "Inkassofall"
 
   //  case class InkassoKey(debitor: Debitor.Id, register: Register, steuerjahr: Jahr, laufnummer: Int)

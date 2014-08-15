@@ -1,8 +1,9 @@
 package ch.eventsourced.infrastructure.akka
 
-import ch.eventsourced.support.GuidAggregateType
+import ch.eventsourced.api.AggregateType
+import ch.eventsourced.support.TypedGuid
 
-object counter extends GuidAggregateType {
+object counter extends AggregateType with TypedGuid {
   def name = "Counter"
 
   sealed trait Command {
@@ -39,5 +40,5 @@ object counter extends GuidAggregateType {
 
   def seed(id: Id) = Counter(id, 0)
   def aggregateIdForCommand(command: Command) = Some(command.counter)
-  protected val types = typeInfo[Command, Event, Error]
+  protected def types = typeInfo
 }

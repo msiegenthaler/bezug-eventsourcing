@@ -1,9 +1,10 @@
 package bezug
 package fakturierung
 
-import ch.eventsourced.support.GuidAggregateType
+import ch.eventsourced.api.AggregateType
+import ch.eventsourced.support.TypedGuid
 
-object Faktura extends GuidAggregateType {
+object Faktura extends AggregateType with TypedGuid {
   def name = "Faktura"
 
   case class Grundlagen(fremdreferenz: String, versandInnerhalb: DatumBereich, art: String)

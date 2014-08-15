@@ -4,18 +4,18 @@ import bezug.debitor.Debitor
 import bezug.debitor.Debitor.InkassoFallEröffnet
 import bezug.fakturierung.Schuldner.{FakturaFall, FakturaFallErstellt}
 import ch.eventsourced.api.ProcessManager.Subscribe
-import ch.eventsourced.support.GuidProcessManagerType
+import ch.eventsourced.api.ProcessManagerType
+import ch.eventsourced.support.DerivedId
 
 /** Wenn ein neuer FakturaFall erstellt wird, dann für diesen einen InkassoFall erstellen und den InkassoFall dem
   * FakturaFall zuordnen
   */
-object InkassoFallEröffnenProcess extends GuidProcessManagerType {
+object InkassoFallEröffnenProcess extends ProcessManagerType with DerivedId[FakturaFall.Id] {
   def name = "InkassoFallEröffnen(Fakturierung)"
 
   def triggeredBy = Set(Faktura)
   def initiate = {
-    case Schuldner.EventData(_, _, e: FakturaFallErstellt) =>
-      Id(e.fall.guid)
+    case Schuldner.EventData(_, _, e: FakturaFallErstellt) => generateId(e.fall)
   }
 
   type Command = Any
@@ -46,4 +46,6 @@ object InkassoFallEröffnenProcess extends GuidProcessManagerType {
 
   }
   def seed(id: Id) = ZuDebitorHinzufügen(id)
+
+  protected def types = typeInfo
 }

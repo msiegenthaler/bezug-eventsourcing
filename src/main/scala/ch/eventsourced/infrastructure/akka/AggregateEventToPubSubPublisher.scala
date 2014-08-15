@@ -18,7 +18,7 @@ class AggregateEventToPubSubPublisher[A <: AggregateType](aggregateType: A) {
     def receive = {
       case AggregateEvent(_, event@EventData(id, seq, _), ack) =>
         //pubSub will directly ack to sender
-        pubSub forward Publish(topics, serializeId(id), event, ack)
+        pubSub forward Publish(topics, aggregateType.Id.serialize(id), event, ack)
     }
   }
 }

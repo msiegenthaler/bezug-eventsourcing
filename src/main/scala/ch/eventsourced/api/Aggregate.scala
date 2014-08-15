@@ -32,18 +32,22 @@ trait AggregateType {
   }
 
   def seed(id: Id): Root
-  def serializeId(id: Id): String
-  def parseId(serialized: String): Option[Id]
   def aggregateIdForCommand(command: Command): Option[Id]
-  protected def types: (Typeable[Command], Typeable[Event], Typeable[Error])
+  protected def types: (StringSerialize[Id], Typeable[Command], Typeable[Event], Typeable[Error])
+
+  object Id {
+    def serialize(id: Id) = types._1.serialize(id)
+    def parse(string: String)= types._1.parse(string)
+    implicit def stringSerialize: StringSerialize[Id] = types._1
+  }
 
   object Command {
-    private implicit def commandTypeable: Typeable[Command] = types._1
+    private implicit def commandTypeable: Typeable[Command] = types._2
     def unapply(a: Any): Option[(Id, Command)] =
       a.cast[Command].flatMap(c => aggregateIdForCommand(c).map((_, c)))
   }
   object Event {
-    private implicit def eventTypeable: Typeable[Event] = types._2
+    private implicit def eventTypeable: Typeable[Event] = types._3
     def unapply(a: Any): Option[Event] = a match {
       case EventData(_, _, event) => Some(event)
       case a => a.cast[Event]
@@ -57,7 +61,7 @@ trait AggregateType {
     }
   }
   object Error {
-    private implicit def errorTypeable: Typeable[Error] = types._3
+    private implicit def errorTypeable: Typeable[Error] = types._4
     def unapply(a: Any): Option[Error] = a.cast[Error]
   }
 
@@ -92,8 +96,8 @@ trait AggregateType {
     }
   }
 
-  protected def typeInfo[Cmd <: Command : Typeable, Ev <: Event : Typeable, Err <: Error : Typeable]: (Typeable[Cmd], Typeable[Ev], Typeable[Err]) = {
-    (implicitly, implicitly, implicitly)
+  protected def typeInfo[I >: Id : StringSerialize, Cmd <: Command : Typeable, Ev <: Event : Typeable, Err <: Error : Typeable]: (StringSerialize[I], Typeable[Cmd], Typeable[Ev], Typeable[Err]) = {
+    (implicitly, implicitly, implicitly, implicitly)
   }
   override def toString = name
 }

@@ -2,16 +2,17 @@ package ch.eventsourced.infrastructure.akka
 
 
 import ch.eventsourced.api.ProcessManager.{Unsubscribe, Subscribe}
-import ch.eventsourced.support.GuidProcessManagerType
+import ch.eventsourced.api.ProcessManagerType
+import ch.eventsourced.support.DerivedId
 
-object OrderProcess extends GuidProcessManagerType {
+object OrderProcess extends ProcessManagerType with DerivedId[Order.Id] {
   def name = "OrderProcess"
 
   type Command = Any
 
   def triggeredBy = Set(Order)
   def initiate = {
-    case Order.EventData(id, _, _: Order.OrderPlaced) => Id(id.guid)
+    case Order.EventData(id, _, _: Order.OrderPlaced) => generateId(id)
   }
 
   sealed trait Transition
@@ -34,5 +35,7 @@ object OrderProcess extends GuidProcessManagerType {
           Unsubscribe(Order.AggregateKey(order))
     }
   }
-  def seed(id: Id) = Manager(id, Order.Id(id.guid), None, false)
+  def seed(id: Id) = Manager(id, id.base, None, false)
+
+  protected def types = typeInfo
 }
