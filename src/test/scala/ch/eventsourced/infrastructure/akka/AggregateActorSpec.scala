@@ -11,12 +11,11 @@ import scala.concurrent.duration._
 
 class AggregateActorSpec extends AbstractSpec {
   val eventHandler = TestProbe()
+  val subs = Map(CompositeIdentifier("testProbe") -> eventHandler.ref)
+  val aggregateActor = new AggregateActor("AggregateActorSpec", counter, subs)
   def startAggregate(id: counter.Id) = {
-    val subs = Map(CompositeIdentifier("testProbe") -> eventHandler.ref)
-    val aa = new AggregateActor("AggregateActorSpec", counter, subs)
-
     val runner = Props(new Actor {
-      val a = context actorOf aa.props(context.self, id, CompositeIdentifier(counter.serializeId(id)))
+      val a = context actorOf aggregateActor.props(context.self, id, CompositeIdentifier(counter.serializeId(id)))
       def receive = {
         case msg => a forward msg
       }
@@ -41,6 +40,7 @@ class AggregateActorSpec extends AbstractSpec {
   def expectEvent(event: EventData, doAck: Boolean = true) = eventHandler.expectMsgPF(hint = event.toString) {
     case AggregateEvent(_, `event`, ack) =>
       if (doAck) eventHandler.reply(ack)
+      ack
   }
 
 
@@ -100,23 +100,6 @@ class AggregateActorSpec extends AbstractSpec {
 
       aggregate.executeSuccess(Increment(init.counter))
       expectEvent(counter.Event.Data(init.counter, 2, Incremented(3)))
-      expectNoEvents()
-    }
-
-    //TODO this is wrong
-    "preserve state if passivated" in {
-      val init = Initialize()
-      val aggregate = startAggregate(init.counter)
-      aggregate.executeSuccess(init)
-
-      aggregate.executeSuccess(Increment(init.counter))
-      expectEvent(counter.Event.Data(init.counter, 0, Incremented(1)))
-      expectNoEvents()
-
-      Thread.sleep(5.seconds.toMillis)
-
-      aggregate.executeSuccess(Increment(init.counter))
-      expectEvent(counter.Event.Data(init.counter, 1, Incremented(2)))
       expectNoEvents()
     }
 
@@ -240,6 +223,84 @@ class AggregateActorSpec extends AbstractSpec {
 
       aggregate.executeSuccess(Increment(init.counter))
       expectEvent(counter.Event.Data(init.counter, 2, Incremented(3)))
+    }
+
+    "allow passivation if no outstanding event ack" in {
+      val init = Initialize()
+      val aggregate = startAggregate(init.counter)
+      aggregate.executeSuccess(init)
+
+      Thread.sleep(200)
+      aggregate ! aggregateActor.RequestPassivation("yes", "no")
+      expectMsg("yes")
+
+      aggregate.executeSuccess(Increment(init.counter))
+      expectEvent(counter.Event.Data(init.counter, 0, Incremented(1)))
+      expectNoEvents()
+
+      Thread.sleep(200)
+      aggregate ! aggregateActor.RequestPassivation("yes", "no")
+      expectMsg("yes")
+
+      aggregate.executeSuccess(Increment(init.counter))
+      expectEvent(counter.Event.Data(init.counter, 1, Incremented(2)))
+      expectNoEvents()
+
+      Thread.sleep(200)
+      aggregate ! aggregateActor.RequestPassivation("yes", "no")
+      expectMsg("yes")
+    }
+
+    "not allow passivation if there is an outstanding event ack" in {
+      val init = Initialize()
+      val aggregate = startAggregate(init.counter)
+      aggregate.executeSuccess(init)
+
+      aggregate.executeSuccess(Increment(init.counter))
+
+      aggregate ! aggregateActor.RequestPassivation("yes", "no")
+      expectMsg("no")
+
+      expectEvent(counter.Event.Data(init.counter, 0, Incremented(1)))
+      expectNoEvents()
+
+      Thread.sleep(200)
+      aggregate ! aggregateActor.RequestPassivation("yes", "no")
+      expectMsg("yes")
+
+      expectNoEvents()
+
+      aggregate.executeSuccess(Increment(init.counter))
+
+      aggregate ! aggregateActor.RequestPassivation("yes", "no")
+      expectMsg("no")
+
+      expectEvent(counter.Event.Data(init.counter, 1, Incremented(2)))
+      expectNoEvents()
+
+      Thread.sleep(200)
+      aggregate ! aggregateActor.RequestPassivation("yes", "no")
+      expectMsg("yes")
+    }
+
+
+    "preserve state if passivated" in {
+      val init = Initialize()
+      val aggregate = startAggregate(init.counter)
+      aggregate.executeSuccess(init)
+
+      aggregate.executeSuccess(Increment(init.counter))
+      expectEvent(counter.Event.Data(init.counter, 0, Incremented(1)))
+      expectNoEvents()
+
+      aggregate ! aggregateActor.Passivate
+      Thread.sleep(500)
+      expectNoEvents()
+
+      val aggregate2 = startAggregate(init.counter)
+      aggregate2.executeSuccess(Increment(init.counter))
+      expectEvent(counter.Event.Data(init.counter, 1, Incremented(2)))
+      expectNoEvents()
     }
   }
 }

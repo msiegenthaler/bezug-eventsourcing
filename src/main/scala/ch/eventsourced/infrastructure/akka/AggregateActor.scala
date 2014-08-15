@@ -124,8 +124,10 @@ class AggregateActor[I, C, E](contextName: String,
       case s: UnsubscribeFromAggregate => subscriptionManager ! s
 
       case RequestPassivation(yes, no) =>
-        //TODO if no outstanding acks then yes, else no
-        sender() ! no
+        if (deliveryConfirmedUpTo == eventSeq - 1)
+          sender() ! yes
+        else
+          sender() ! no
       case Passivate =>
         context stop self
     }
