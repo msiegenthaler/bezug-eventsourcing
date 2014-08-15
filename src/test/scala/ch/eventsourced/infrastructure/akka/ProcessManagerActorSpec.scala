@@ -5,7 +5,7 @@ import akka.testkit.TestProbe
 import ch.eventsourced.api.AggregateKey
 import ch.eventsourced.infrastructure.akka.AggregateActor._
 import ch.eventsourced.infrastructure.akka.Payment.PaymentConfirmed
-import ch.eventsourced.support.CompositeIdentifier
+import ch.eventsourced.support.CompositeName
 
 class ProcessManagerInstanceSpec extends AbstractSpec {
 
@@ -13,7 +13,7 @@ class ProcessManagerInstanceSpec extends AbstractSpec {
     val orderPmi = new ProcessManagerActor("test", OrderProcess, cmdDist)
     val runner = Props(new Actor {
       val pid = OrderProcess.initiate(Order.EventData(orderId, 0, Order.OrderPlaced(Nil, 0, "")))
-      val pm = context actorOf orderPmi.props(context.self, pid, CompositeIdentifier(OrderProcess.serializeId(pid)))
+      val pm = context actorOf orderPmi.props(context.self, pid, CompositeName(OrderProcess.serializeId(pid)))
       def receive = {
         case msg => pm forward msg
       }

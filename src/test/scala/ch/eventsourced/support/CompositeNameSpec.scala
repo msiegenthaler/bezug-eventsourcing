@@ -2,9 +2,9 @@ package ch.eventsourced.support
 
 import org.scalatest.{Matchers, WordSpecLike}
 
-class CompositeIdentifierSpec extends WordSpecLike with Matchers {
+class CompositeNameSpec extends WordSpecLike with Matchers {
 
-  "CompositeIdentifier.root" must {
+  "CompositeName.root" must {
     "be equal to itself" in {
       assert(CompositeName.root === CompositeName.root)
       assert(CompositeName.root.hashCode === CompositeName.root.hashCode)
@@ -20,7 +20,7 @@ class CompositeIdentifierSpec extends WordSpecLike with Matchers {
     }
   }
 
-  "CompositeIdentifier" must {
+  "CompositeName" must {
     val id1 = CompositeName.root / "aggregate" / "123"
     val id2 = CompositeName.root / "and/or" / "hans peter"
 
@@ -48,7 +48,7 @@ class CompositeIdentifierSpec extends WordSpecLike with Matchers {
       assert(CompositeName.parse("\\asasd") === None)
     }
 
-    "unapply from composite identifier" in {
+    "unapply from composite name" in {
       id1 match {
         case CompositeName("aggregate", b) => assert(b === "123")
       }
@@ -64,7 +64,7 @@ class CompositeIdentifierSpec extends WordSpecLike with Matchers {
       }
     }
 
-    "concatenate with another CompositeIdentifier" in {
+    "concatenate with another CompositeName" in {
       val conc = id1 / id2
       assert(conc === CompositeName.root / "aggregate" / "123" / "and/or" / "hans peter")
     }

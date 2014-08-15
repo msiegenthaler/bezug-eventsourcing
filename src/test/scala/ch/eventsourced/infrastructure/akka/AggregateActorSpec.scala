@@ -6,16 +6,16 @@ import akka.util.Timeout
 import ch.eventsourced.api.EventData
 import ch.eventsourced.infrastructure.akka.AggregateActor._
 import ch.eventsourced.infrastructure.akka.counter.Kill
-import ch.eventsourced.support.CompositeIdentifier
+import ch.eventsourced.support.CompositeName
 import scala.concurrent.duration._
 
 class AggregateActorSpec extends AbstractSpec {
   val eventHandler = TestProbe()
-  val subs = Map(CompositeIdentifier("testProbe") -> eventHandler.ref)
+  val subs = Map(CompositeName("testProbe") -> eventHandler.ref)
   val aggregateActor = new AggregateActor("AggregateActorSpec", counter, subs)
   def startAggregate(id: counter.Id) = {
     val runner = Props(new Actor {
-      val a = context actorOf aggregateActor.props(context.self, id, CompositeIdentifier(counter.serializeId(id)))
+      val a = context actorOf aggregateActor.props(context.self, id, CompositeName(counter.serializeId(id)))
       def receive = {
         case msg => a forward msg
       }

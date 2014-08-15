@@ -6,7 +6,7 @@ import akka.actor._
 import akka.persistence.{PersistentActor, RecoveryCompleted}
 import scalaz._
 import ch.eventsourced.api.{EventData, AggregateKey, AggregateType}
-import ch.eventsourced.support.CompositeIdentifier
+import ch.eventsourced.support.CompositeName
 import ch.eventsourced.infrastructure.akka.AggregateSubscription.OnEvent
 import ch.eventsourced.infrastructure.akka.AggregateSubscriptionManager.{Start, AddManualSubscription}
 import ch.eventsourced.infrastructure.akka.AggregateActor._
@@ -34,7 +34,7 @@ object AggregateActor {
   /** Emitted events in the journal (for use in persistent view). */
   case class EventEmitted[+Event](sequence: Long, event: Event) extends JournalEvent
 
-  type SubscriptionId = CompositeIdentifier
+  type SubscriptionId = CompositeName
 }
 
 /**
@@ -55,7 +55,7 @@ class AggregateActor[I, C, E](contextName: String,
   eventSubscriptions: Map[SubscriptionId, ActorRef]) extends ShardedActor[I] {
   import aggregateType._
 
-  def name = CompositeIdentifier(contextName) / "aggregate" / aggregateType.name
+  def name = CompositeName(contextName) / "aggregate" / aggregateType.name
   def serializeId(id: I) = aggregateType.serializeId(id)
   def parseId(value: String) = aggregateType.parseId(value)
 
@@ -64,14 +64,14 @@ class AggregateActor[I, C, E](contextName: String,
     case SubscribeToAggregate(_, AggregateKey(id), _, _, _) => id
     case UnsubscribeFromAggregate(_, AggregateKey(id), _) => id
   }
-  def props(publicRef: ActorRef, id: Id, name: CompositeIdentifier) = Props(new AggregateInstance(id, name))
+  def props(publicRef: ActorRef, id: Id, name: CompositeName) = Props(new AggregateInstance(id, name))
 
   private val journalReplay = new AggregateJournalReplay(aggregateType)
   private case class EventDelivered(id: Long) extends JournalEvent
   private case class EventAck(id: Long) extends JournalEvent
   private case object PassivateAggregateRoot
 
-  private class AggregateInstance(id: Id, name: CompositeIdentifier) extends PersistentActor with ActorLogging {
+  private class AggregateInstance(id: Id, name: CompositeName) extends PersistentActor with ActorLogging {
     val persistenceId = name.serialize
     private var eventSeq: Long = 0
     private var state = seed(id)

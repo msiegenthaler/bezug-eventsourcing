@@ -4,7 +4,7 @@ import akka.actor.{Props, ActorLogging, ActorRef}
 import akka.persistence.{RecoveryCompleted, PersistentActor}
 import ch.eventsourced.api.{ProcessManager, EventData, AggregateKey, ProcessManagerType}
 import ch.eventsourced.infrastructure.akka.AggregateActor._
-import ch.eventsourced.support.CompositeIdentifier
+import ch.eventsourced.support.CompositeName
 
 /**
  * Represents a running instance of a process manager.
@@ -22,13 +22,13 @@ class ProcessManagerActor[I, C, E](contextName: String,
   commandDistributor: ActorRef) extends ShardedActor[I] {
   import processManagerType._
 
-  def props(publicRef: ActorRef, id: I, name: CompositeIdentifier) = Props(new Process(publicRef, id, name))
+  def props(publicRef: ActorRef, id: I, name: CompositeName) = Props(new Process(publicRef, id, name))
 
   /** Handles EventData messages and starts process instances as needed. */
   def initiator = new ProcessInitator(processManagerType, initiateMessage)
   def registerOn = processManagerType.triggeredBy
 
-  def name = CompositeIdentifier(contextName) / "processManager" / processManagerType.name
+  def name = CompositeName(contextName) / "processManager" / processManagerType.name
   def serializeId(id: Id) = processManagerType.serializeId(id)
   def parseId(value: String) = processManagerType.parseId(value)
 
@@ -51,8 +51,8 @@ class ProcessManagerActor[I, C, E](contextName: String,
       val pm = ProcessManagerActor.this.name / "instance" / serializeId(id)
       pm / "aggregate" / key.aggregateType.name / key.aggregateType.serializeId(key.id)
     }
-    def unapply(id: CompositeIdentifier): Option[Id] = id match {
-      case CompositeIdentifier(`contextName`, "processManager", `name`, "instance", id, "aggregate", _, _) =>
+    def unapply(id: CompositeName): Option[Id] = id match {
+      case CompositeName(`contextName`, "processManager", `name`, "instance", id, "aggregate", _, _) =>
         parseId(id)
       case _ => None
     }
@@ -66,7 +66,7 @@ class ProcessManagerActor[I, C, E](contextName: String,
    * - The commands are persistent, because we don't want to send out commands from a new impl when replaying
    * - process is done only if it has no active subscriptions and no pending commands
    */
-  private class Process(publicRef: ActorRef, id: Id, name: CompositeIdentifier) extends PersistentActor with ActorLogging {
+  private class Process(publicRef: ActorRef, id: Id, name: CompositeName) extends PersistentActor with ActorLogging {
     val persistenceId = name.serialize
     val commandTarget = context actorOf OrderPreservingAck.props(commandDistributor) {
       case Execute(_, ok, fail) => msg => msg == ok || msg == fail

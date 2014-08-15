@@ -1,7 +1,7 @@
 package ch.eventsourced.infrastructure.akka
 
 import akka.actor._
-import ch.eventsourced.support.CompositeIdentifier
+import ch.eventsourced.support.CompositeName
 
 /**
  * (Persitent) actor that can be sharded across multiple machines.
@@ -11,13 +11,13 @@ import ch.eventsourced.support.CompositeIdentifier
  * - Making sure that the actors that did not passivate normally are restarted (without a message) at the next system start
  */
 trait ShardedActor[Id] {
-  def name: CompositeIdentifier
+  def name: CompositeName
 
   /** Props to create a new actor instance.
     * @param publicRef reference the actor should give out to pears instead of 'context.self' if redirection of messages
     *                  over the sharding infrastructure is desired.
     */
-  def props(publicRef: ActorRef, id: Id, name: CompositeIdentifier): Props
+  def props(publicRef: ActorRef, id: Id, name: CompositeName): Props
 
   def messageSelector: PartialFunction[Any, Id]
   def serializeId(id: Id): String

@@ -7,7 +7,7 @@ import scala.concurrent.ExecutionContext.Implicits.global
 import akka.actor._
 import akka.persistence.{RecoveryCompleted, PersistentActor}
 import akka.pattern.ask
-import ch.eventsourced.support.CompositeIdentifier
+import ch.eventsourced.support.CompositeName
 import ch.eventsourced.infrastructure.akka.AggregateActor.{UnsubscribeFromAggregate, SubscribeToAggregate, SubscriptionId}
 import ch.eventsourced.infrastructure.akka.AggregateSubscription.{OnEvent, Close}
 
@@ -25,9 +25,9 @@ object AggregateSubscriptionManager {
   case class Start(at: Long)
   case class AddManualSubscription(subscriptionId: SubscriptionId, partitionId: String, target: ActorRef)
 
-  def props(baseName: CompositeIdentifier, journalReplay: (Long, Long) => Props): Props = Props(new Publisher(baseName, journalReplay))
+  def props(baseName: CompositeName, journalReplay: (Long, Long) => Props): Props = Props(new Publisher(baseName, journalReplay))
 
-  private class Publisher(baseName: CompositeIdentifier, journalReplay: (Long, Long) => Props)
+  private class Publisher(baseName: CompositeName, journalReplay: (Long, Long) => Props)
     extends PersistentActor with ActorLogging with Stash {
     def persistenceId = (baseName / "SubscriptionManager").serialize
 
