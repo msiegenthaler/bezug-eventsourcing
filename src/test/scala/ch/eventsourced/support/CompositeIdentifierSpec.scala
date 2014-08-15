@@ -63,5 +63,15 @@ class CompositeIdentifierSpec extends WordSpecLike with Matchers {
         case CompositeIdentifier("aggregate", b) => assert(b === "123")
       }
     }
+
+    "concatenate with another CompositeIdentifier" in {
+      val conc = id1 / id2
+      assert(conc === CompositeIdentifier.root / "aggregate" / "123" / "and/or" / "hans peter")
+    }
+
+    "concatenate with root to be the same as before" in {
+      val conc = id1 / CompositeIdentifier.root
+      assert(conc === id1)
+    }
   }
 }
