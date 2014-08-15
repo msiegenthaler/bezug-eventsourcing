@@ -77,9 +77,10 @@ class ProcessManagerActor[I, C, E](contextName: String,
     private var state = seed(id)
     private var done = false
     private var activeSubscriptions = Map.empty[SubscriptionId, AggregateKey]
+    private var unconfirmedSubscribes = Set.empty[SubscriptionId]
+    private var unconfirmedUnsubscribes = Set.empty[SubscriptionId]
 
     //TODO event deduplication
-    //TODO Passivate...
 
     //Live messages
     def receiveCommand = {
@@ -97,10 +98,14 @@ class ProcessManagerActor[I, C, E](contextName: String,
         commandConfirmed(cmdId)
 
       case s@SubscriptionAdded(id, to) =>
-        persist(s) { _ => ()}
+        persist(s) { _ =>
+          unconfirmedSubscribes -= id
+        }
 
       case s@SubscriptionRemoved(id) =>
-        persist(s) { _ => ()}
+        persist(s) { _ =>
+          unconfirmedUnsubscribes -= id
+        }
         terminateIfDone()
 
       case AggregateEvent(subId, event, ack) if !done && activeSubscriptions.contains(subId) =>
@@ -128,9 +133,13 @@ class ProcessManagerActor[I, C, E](contextName: String,
         removeSubscription(subId, event.aggregateKey)
 
       case RequestPassivation(yes, no) =>
-        //TODO if no outstanding acks (commands, subscriptions) then yes, else no
-        sender() ! no
+        if (unconfirmedCommands.isEmpty && unconfirmedSubscribes.isEmpty && unconfirmedUnsubscribes.isEmpty)
+          sender() ! yes
+        else
+          sender() ! no
+
       case Passivate =>
+        log.debug("passivate the process manager")
         context stop self
     }
 
@@ -221,14 +230,16 @@ class ProcessManagerActor[I, C, E](contextName: String,
       val subscriptionId = SubscriptionId(id, to)
       val ack = SubscriptionAdded(subscriptionId, to)
       activeSubscriptions += subscriptionId -> to
+      unconfirmedSubscribes += subscriptionId
       commandTarget ! SubscribeToAggregate(subscriptionId, to, publicRef.path, fromSequence, ack)
     }
     def removeSubscription(to: AggregateKey): Unit = {
       activeSubscriptions.filter(_._2 == to).map(_._1).foreach(removeSubscription(_, to))
     }
-    def removeSubscription(id: SubscriptionId, to: AggregateKey): Unit = {
-      activeSubscriptions -= id
-      commandTarget ! UnsubscribeFromAggregate(id, to, SubscriptionRemoved(id))
+    def removeSubscription(subscriptionId: SubscriptionId, to: AggregateKey): Unit = {
+      activeSubscriptions -= subscriptionId
+      unconfirmedUnsubscribes += subscriptionId
+      commandTarget ! UnsubscribeFromAggregate(subscriptionId, to, SubscriptionRemoved(subscriptionId))
     }
 
     //Termination

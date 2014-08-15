@@ -341,6 +341,113 @@ class ProcessManagerInstanceSpec extends AbstractSpec {
       assert(subscriber === pmi.path)
     }
 
-    //TODO test correct passivation
+    "allow passivation if no pending ack" in {
+      val o = new TestOrder
+      val commandProbe = TestProbe()
+      val (orderPmi, pmi) = startPmi(o.id, commandProbe.ref)
+      pmi ! orderPmi.InitiateProcess(o.placed, "ack1")
+      expectMsg("ack1")
+      val (orderSubscription, ackSubO, _) = commandProbe.expectSubscribe(o.key, o.placed.sequence)
+      commandProbe.reply(ackSubO)
+
+      pmi ! orderPmi.RequestPassivation("yes", "no")
+      expectMsg("yes")
+
+      pmi ! AggregateEvent(orderSubscription, o.placed, "ack2")
+      expectMsg("ack2")
+
+      //Request payment
+      val (ackRequest, _, paymentKey2) = commandProbe.expectCommand {
+        case Payment.RequestPayment(100, "test-bill", id) => id
+      }
+      commandProbe.reply(ackRequest)
+      //Subscribe to payment
+      val (_, ackSubP, paymentKey) = commandProbe.expectSubscribe()
+      commandProbe.reply(ackSubP)
+      //Unsubscribe from order
+      val ackUnsO = commandProbe.expectUnsubscribe(orderSubscription, o.key)
+      commandProbe.reply(ackUnsO)
+
+      Thread.sleep(200)
+      pmi ! orderPmi.RequestPassivation("yes", "no")
+      expectMsg("yes")
+    }
+
+    "not allow passivation if pending command ack" in {
+      val o = new TestOrder
+      val commandProbe = TestProbe()
+      val (orderPmi, pmi) = startPmi(o.id, commandProbe.ref)
+      pmi ! orderPmi.InitiateProcess(o.placed, "ack1")
+      expectMsg("ack1")
+      val (orderSubscription, ackSubO, _) = commandProbe.expectSubscribe(o.key, o.placed.sequence)
+      commandProbe.reply(ackSubO)
+
+      pmi ! AggregateEvent(orderSubscription, o.placed, "ack2")
+      expectMsg("ack2")
+
+      pmi ! orderPmi.RequestPassivation("yes", "no")
+      expectMsg("no")
+
+      //Request payment
+      val (ackRequest, _, paymentKey2) = commandProbe.expectCommand {
+        case Payment.RequestPayment(100, "test-bill", id) => id
+      }
+
+      pmi ! orderPmi.RequestPassivation("yes", "no")
+      expectMsg("no")
+
+      commandProbe.reply(ackRequest)
+      //Subscribe to payment
+      val (_, ackSubP, paymentKey) = commandProbe.expectSubscribe()
+      commandProbe.reply(ackSubP)
+      //Unsubscribe from order
+      val ackUnsO = commandProbe.expectUnsubscribe(orderSubscription, o.key)
+      commandProbe.reply(ackUnsO)
+
+      Thread.sleep(200)
+      pmi ! orderPmi.RequestPassivation("yes", "no")
+      expectMsg("yes")
+    }
+
+    "not allow passivation if pending subscription ack" in {
+      val o = new TestOrder
+      val commandProbe = TestProbe()
+      val (orderPmi, pmi) = startPmi(o.id, commandProbe.ref)
+      pmi ! orderPmi.InitiateProcess(o.placed, "ack1")
+      expectMsg("ack1")
+      val (orderSubscription, ackSubO, _) = commandProbe.expectSubscribe(o.key, o.placed.sequence)
+      commandProbe.reply(ackSubO)
+
+      pmi ! AggregateEvent(orderSubscription, o.placed, "ack2")
+      expectMsg("ack2")
+
+      //Request payment
+      val (ackRequest, _, paymentKey2) = commandProbe.expectCommand {
+        case Payment.RequestPayment(100, "test-bill", id) => id
+      }
+      commandProbe.reply(ackRequest)
+      //Subscribe to payment
+      val (_, ackSubP, paymentKey) = commandProbe.expectSubscribe()
+
+      pmi ! orderPmi.RequestPassivation("yes", "no")
+      expectMsg("no")
+
+      commandProbe.reply(ackSubP)
+
+      pmi ! orderPmi.RequestPassivation("yes", "no")
+      expectMsg("no")
+
+      //Unsubscribe from order
+      val ackUnsO = commandProbe.expectUnsubscribe(orderSubscription, o.key)
+
+      pmi ! orderPmi.RequestPassivation("yes", "no")
+      expectMsg("no")
+
+      commandProbe.reply(ackUnsO)
+
+      Thread.sleep(200)
+      pmi ! orderPmi.RequestPassivation("yes", "no")
+      expectMsg("yes")
+    }
   }
 }
