@@ -5,7 +5,6 @@ import akka.testkit.TestProbe
 import ch.eventsourced.api.AggregateKey
 import ch.eventsourced.infrastructure.akka.AggregateActor._
 import ch.eventsourced.infrastructure.akka.Payment.PaymentConfirmed
-import ch.eventsourced.support.CompositeName
 
 class ProcessManagerInstanceSpec extends AbstractSpec {
 

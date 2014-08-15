@@ -4,7 +4,6 @@ import akka.actor.{Props, ActorLogging, ActorRef}
 import akka.persistence.{RecoveryCompleted, PersistentActor}
 import ch.eventsourced.api.{ProcessManager, EventData, AggregateKey, ProcessManagerType}
 import ch.eventsourced.infrastructure.akka.AggregateActor._
-import ch.eventsourced.support.CompositeName
 
 /**
  * Represents a running instance of a process manager.

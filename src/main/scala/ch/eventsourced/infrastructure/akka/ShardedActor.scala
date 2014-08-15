@@ -1,7 +1,6 @@
 package ch.eventsourced.infrastructure.akka
 
 import akka.actor._
-import ch.eventsourced.support.CompositeName
 
 /**
  * (Persitent) actor that can be sharded across multiple machines.

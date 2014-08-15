@@ -6,7 +6,6 @@ import akka.actor._
 import akka.persistence.{PersistentActor, RecoveryCompleted}
 import scalaz._
 import ch.eventsourced.api.{EventData, AggregateKey, AggregateType}
-import ch.eventsourced.support.CompositeName
 import ch.eventsourced.infrastructure.akka.AggregateSubscription.OnEvent
 import ch.eventsourced.infrastructure.akka.AggregateSubscriptionManager.{Start, AddManualSubscription}
 import ch.eventsourced.infrastructure.akka.AggregateActor._

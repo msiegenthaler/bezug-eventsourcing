@@ -1,6 +1,5 @@
 package ch.eventsourced.infrastructure.akka
 
-import ch.eventsourced.support.CompositeName
 import scala.concurrent.duration._
 import akka.actor.{PoisonPill, Actor, Props}
 import akka.testkit.TestProbe

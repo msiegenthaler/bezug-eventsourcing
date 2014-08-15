@@ -1,4 +1,4 @@
-package ch.eventsourced.support
+package ch.eventsourced.infrastructure.akka
 
 import java.net.{URLDecoder, URLEncoder}
 import scala.util.Try

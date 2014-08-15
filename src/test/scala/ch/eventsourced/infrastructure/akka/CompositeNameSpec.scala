@@ -1,4 +1,4 @@
-package ch.eventsourced.support
+package ch.eventsourced.infrastructure.akka
 
 import org.scalatest.{Matchers, WordSpecLike}
 

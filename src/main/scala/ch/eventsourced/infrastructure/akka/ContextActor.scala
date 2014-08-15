@@ -4,7 +4,6 @@ import java.net.URLEncoder
 import scala.concurrent.duration._
 import akka.actor.{Props, Actor, ActorRef}
 import ch.eventsourced.api.{AggregateType, BoundedContextBackendType}
-import ch.eventsourced.support.CompositeName
 import pubsub.Topic
 import ContextActor._
 

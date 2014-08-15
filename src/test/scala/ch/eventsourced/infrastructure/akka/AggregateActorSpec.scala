@@ -6,7 +6,6 @@ import akka.util.Timeout
 import ch.eventsourced.api.EventData
 import ch.eventsourced.infrastructure.akka.AggregateActor._
 import ch.eventsourced.infrastructure.akka.counter.Kill
-import ch.eventsourced.support.CompositeName
 import scala.concurrent.duration._
 
 class AggregateActorSpec extends AbstractSpec {
