@@ -14,7 +14,8 @@ abstract class AbstractSpec(_system: ActorSystem) extends TestKit(_system) with 
         |akka.actor.debug.receive = "on"
         |akka.actor.debug.autoreceive = "off"
         |akka.actor.debug.lifecycle = "off"
-        |akka.persistence.journal.plugin = "in-memory-journal"
+        |akka.persistence.journal.plugin = "akka.persistence.journal.inmem"
+        |akka.persistence.snapshot-store.plugin = "in-memory-snapshot-store"
         |akka.persistence.at-least-once-delivery.redeliver-interval = "1s"
         |ch.eventsourced.aggregate-subscription.retry-interval = 1s
       """.stripMargin)

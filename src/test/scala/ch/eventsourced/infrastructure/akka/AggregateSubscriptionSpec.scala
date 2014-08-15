@@ -198,6 +198,36 @@ class AggregateSubscriptionSpec extends AbstractSpec {
       probe.expectEvent(event1)
       probe.expectNoMsg()
     }
+
+    "be efficient for large numbers of messages" in {
+      val probe = TestProbe()
+      implicit val id = CompositeName("test9")
+      val sub = system actorOf AggregateSubscription.props(id, "main", probe.ref, noJournalAccessExpected)
+      sub ! Start(0)
+      val counterId = Initialize().counter
+
+      //send and ack a lot of messages
+      (0 to 10001).foreach { i =>
+        val event = counter.EventData(counterId, i, Incremented(i))
+        sub ! OnEvent(event, s"ack-$i")
+        expectMsg(s"ack-$i")
+        probe.expectEvent(event)
+      }
+      Thread.sleep(500)
+      sub ! PoisonPill
+
+      //should load from snapshot
+      val sub2 = system actorOf AggregateSubscription.props(id, "main", probe.ref, noJournalAccessExpected)
+      sub2 ! Start(10002)
+      probe.expectNoMsg()
+      (10002 to 10010).foreach { i =>
+        val event = counter.EventData(counterId, i, Incremented(i))
+        sub2 ! OnEvent(event, s"ack-$i")
+        expectMsg(s"ack-$i")
+        probe.expectEvent(event)
+      }
+      sub2 ! PoisonPill
+    }
   }
 
 }

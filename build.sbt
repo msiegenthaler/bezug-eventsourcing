@@ -20,10 +20,11 @@ libraryDependencies += "org.scalatest" % "scalatest_2.11" % "2.2.0" % "test"
 
 libraryDependencies += "com.typesafe.akka" %% "akka-testkit" % "2.3.4" % "test"
 
-libraryDependencies += "com.github.michaelpisula" %% "akka-persistence-inmemory" % "0.2.1" % "test"
+libraryDependencies +=
+  "com.migesok" %% "akka-persistence-in-memory-snapshot-store" % "0.1.0"
 
 
-resolvers += "krasserm at bintray" at "http://dl.bintray.com/krasserm/maven"
+resolvers += "migesok at bintray" at "http://dl.bintray.com/migesok/maven"
 
 
 scalacOptions ++= Seq("-unchecked", "-deprecation", "-feature")

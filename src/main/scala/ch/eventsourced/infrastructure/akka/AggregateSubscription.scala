@@ -4,7 +4,7 @@ import scala.collection.SortedSet
 import scala.concurrent.duration._
 import akka.actor._
 import akka.actor.SupervisorStrategy.Escalate
-import akka.persistence.{RecoveryCompleted, PersistentActor}
+import akka.persistence.{SnapshotOffer, RecoveryCompleted, PersistentActor}
 import ch.eventsourced.api.EventData
 import ch.eventsourced.infrastructure.akka.AggregateActor.{AggregateEvent, SubscriptionId}
 
@@ -33,7 +33,7 @@ object AggregateSubscription {
     def compare(x: EventData, y: EventData) = x.sequence compare y.sequence
   }
   private class SubscriptionActor(id: SubscriptionId, partition: String, journalReplay: (Long, Long) => Props,
-    _target: ActorRef, start: Long = 0) extends PersistentActor with ActorLogging with Stash {
+    _target: ActorRef, start: Long) extends PersistentActor with ActorLogging with Stash {
     def persistenceId = (CompositeName("AggregateSubscription") / id / partition).serialize
     private var pos = start - 1
     private var buffer = SortedSet.empty[EventData]
@@ -43,6 +43,7 @@ object AggregateSubscription {
       def retries = config.getInt("retries-until-restart")
       def retryTimeout = config.getDuration("retry-interval", MILLISECONDS).millis
       val maxBufferSize = config.getLong("max-buffered-messages")
+      val snapshotInterval = config.getLong("snapshot-interval")
     }
 
     override val supervisorStrategy = OneForOneStrategy() {
@@ -53,9 +54,7 @@ object AggregateSubscription {
       case AggregateEvent(_, _, ack) => _ == ack
     }
 
-    //TODO use snapshots
     //TODO add overflow protection using aggregate journal backpressure and discarding of live events (reread from journal)
-    //TODO retries
 
     def receiveCommand = {
       case Start(liveFrom) =>
@@ -87,6 +86,12 @@ object AggregateSubscription {
       case AckEvent(seq) if seq == pos + 1 =>
         persist(EventAcknowledged(seq)) { _ =>
           pos = seq
+
+          if (pos > 0 && pos % Config.snapshotInterval == 0) {
+            log.debug(s"saving snapshot at $pos")
+            saveSnapshot(EverythingAcknowledgedUpTo(pos))
+          }
+
           //send next to target
           buffer.headOption.filter(_.sequence == pos + 1).foreach { event =>
             target ! AggregateEvent(id, event, AckEvent(event.sequence))
@@ -98,7 +103,8 @@ object AggregateSubscription {
 
       case Close(d) =>
         persist(Closed(d)) {
-          case Closed(whenDone) =>
+          case closed@Closed(whenDone) =>
+            saveSnapshot(closed)
             context.parent ! whenDone
             context stop self
         }
@@ -106,9 +112,15 @@ object AggregateSubscription {
 
     def receiveRecover = {
       case EventAcknowledged(seq) => pos = seq max pos
+      case SnapshotOffer(_, EverythingAcknowledgedUpTo(seq)) => pos = seq max pos
+
       case Closed(whenDone) =>
         context.parent ! whenDone
         context stop self
+      case SnapshotOffer(_, Closed(whenDone)) =>
+        context.parent ! whenDone
+        context stop self
+
       case RecoveryCompleted =>
         () //wait for Start message
     }
@@ -128,4 +140,5 @@ object AggregateSubscription {
   private case class EventAcknowledged(sequence: Long)
   private case class Closed(whenDone: Any)
   private case class AckEvent(sequence: Long)
+  private case class EverythingAcknowledgedUpTo(sequence: Long)
 }
