@@ -1,16 +1,24 @@
 package ch.eventsourced.infrastructure.akka
 
-import akka.actor.{PoisonPill, ActorRef}
+import akka.actor.{Actor, Props, PoisonPill, ActorRef}
 import akka.testkit.TestProbe
 import ch.eventsourced.api.AggregateKey
 import ch.eventsourced.infrastructure.akka.AggregateActor._
 import ch.eventsourced.infrastructure.akka.Payment.PaymentConfirmed
+import ch.eventsourced.support.CompositeIdentifier
 
 class ProcessManagerInstanceSpec extends AbstractSpec {
 
   def startPmi(orderId: Order.Id, cmdDist: ActorRef) = {
     val orderPmi = new ProcessManagerActor("test", OrderProcess, cmdDist)
-    val actor = system actorOf LocalSharder.props(orderPmi)
+    val runner = Props(new Actor {
+      val pid = OrderProcess.initiate(Order.EventData(orderId, 0, Order.OrderPlaced(Nil, 0, "")))
+      val pm = context actorOf orderPmi.props(context.self, pid, CompositeIdentifier(OrderProcess.serializeId(pid)))
+      def receive = {
+        case msg => pm forward msg
+      }
+    })
+    val actor = system actorOf runner
     (orderPmi, actor)
   }
 
@@ -332,5 +340,7 @@ class ProcessManagerInstanceSpec extends AbstractSpec {
       testProbe.reply(ackSubO)
       assert(subscriber === pmi.path)
     }
+
+    //TODO test correct passivation
   }
 }

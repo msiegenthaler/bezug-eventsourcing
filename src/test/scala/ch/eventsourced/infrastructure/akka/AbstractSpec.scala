@@ -10,7 +10,7 @@ abstract class AbstractSpec(_system: ActorSystem) extends TestKit(_system) with 
   def this() = this {
     val config = ConfigFactory.parseString(
       """
-        |akka.loglevel = "DEBUG"
+        |akka.loglevel = "WARNING"
         |akka.actor.debug.receive = "on"
         |akka.actor.debug.autoreceive = "off"
         |akka.actor.debug.lifecycle = "off"
