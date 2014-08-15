@@ -1,8 +1,9 @@
 package ch.eventsourced.infrastructure.akka
 
-import ch.eventsourced.support.GuidAggregateType
+import ch.eventsourced.api.AggregateType
+import ch.eventsourced.support.TypedGuid
 
-object Payment extends GuidAggregateType {
+object Payment extends AggregateType with TypedGuid {
   def name = "Payment"
 
   sealed trait Event
