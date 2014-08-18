@@ -4,6 +4,7 @@ import akka.actor.{Props, ActorLogging, ActorRef}
 import akka.persistence.{RecoveryCompleted, PersistentActor}
 import ch.eventsourced.api.{ProcessManager, EventData, AggregateKey, ProcessManagerType}
 import ch.eventsourced.infrastructure.akka.AggregateActor._
+import ch.eventsourced.support.Guid
 
 /**
  * Represents a running instance of a process manager.
@@ -48,10 +49,11 @@ class ProcessManagerActor[I, C, E](contextName: String,
   private[akka] object SubscriptionId {
     def apply(id: Id, key: AggregateKey) = {
       val pm = ProcessManagerActor.this.name / "instance" / serializeId(id)
-      pm / "aggregate" / key.aggregateType.name / key.aggregateType.Id.serialize(key.id)
+      pm / "aggregate" / key.aggregateType.name / key.aggregateType.Id.serialize(key.id) /
+        Guid.generate.serializeToString
     }
     def unapply(id: CompositeName): Option[Id] = id match {
-      case CompositeName(`contextName`, "processManager", `name`, "instance", id, "aggregate", _, _) =>
+      case CompositeName(`contextName`, "processManager", `name`, "instance", id, "aggregate", _, _, _) =>
         parseId(id)
       case _ => None
     }
