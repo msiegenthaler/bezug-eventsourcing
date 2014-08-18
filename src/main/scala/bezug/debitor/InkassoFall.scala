@@ -28,8 +28,13 @@ object InkassoFall extends AggregateType with TypedGuid {
   sealed trait Root extends RootBase
   def seed(id: Id) = EmptyInkassoFall(id)
   case class EmptyInkassoFall(id: Id) extends Root {
-    def execute(c: Command) = ???
-    def applyEvent = ???
+    def execute(c: Command) = c match {
+      case Eröffnen(debitor, register, steuerjahr, fall) =>
+        Eröffnet(debitor, register, steuerjahr)
+    }
+    def applyEvent = {
+      case Eröffnet(_, _, _) => InkassoFall(id, Nil)
+    }
   }
   case class InkassoFall(id: Id, buchungen: Seq[Buchung.Id]) extends Root {
     def execute(c: Command) = ???
