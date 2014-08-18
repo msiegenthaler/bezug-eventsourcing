@@ -1,6 +1,7 @@
 package ch.eventsourced.infrastructure.akka
 
 import akka.actor.SupervisorStrategy.Escalate
+import akka.persistence.{RecoveryCompleted, PersistentActor}
 import scala.concurrent.duration._
 import akka.actor._
 
@@ -40,6 +41,44 @@ class LocalSharder(
       children += id -> child
       child
     }
+  }
+
+  class CleannessTracker[Id](name: CompositeName) {
+    case class MarkUnclean(id: Id)
+    case class MarkClean(id: Id)
+    case class NeedsCleaning(id: Id)
+
+    def props: Props = Props(new TrackerActor)
+
+    private class TrackerActor extends PersistentActor with ActorLogging {
+      val persistenceId = (CompositeName("cleannessTracker") / name).serialize
+      var dirty = Set.empty[Id]
+
+      def receiveCommand = {
+        case MarkClean(id) =>
+          persist(MarkedClean(id))(processEvent)
+        case MarkedUnclean(id) =>
+          persist(MarkedUnclean(id))(processEvent)
+      }
+      def receiveRecover = {
+        case event: Event => processEvent(event)
+        case RecoveryCompleted =>
+          log.info(s"Completed recovery, ${dirty.size} unclean.")
+          dirty foreach { id =>
+            context.parent ! NeedsCleaning(id)
+          }
+      }
+
+      def processEvent(event: Event) = event match {
+        case MarkedClean(id) =>
+          dirty -= id
+        case MarkedUnclean(id) =>
+          dirty += id
+      }
+    }
+    private sealed trait Event
+    private case class MarkedClean(id: Id) extends Event
+    private case class MarkedUnclean(id: Id) extends Event
   }
 
 
