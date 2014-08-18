@@ -14,7 +14,7 @@ import ch.eventsourced.support.DerivedId
 object InkassoFallEröffnenProcess extends ProcessManagerType with DerivedId[FakturaFall.Id] {
   def name = "InkassoFallEröffnen(Fakturierung)"
 
-  def triggeredBy = Set(Faktura)
+  def triggeredBy = Set(Schuldner)
   def initiate = {
     case Schuldner.EventData(_, _, e: FakturaFallErstellt) => generateId(e.fall)
   }
