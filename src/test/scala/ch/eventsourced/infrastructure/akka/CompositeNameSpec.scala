@@ -62,6 +62,12 @@ class CompositeNameSpec extends WordSpecLike with Matchers {
       id1.serialize match {
         case CompositeName("aggregate", b) => assert(b === "123")
       }
+      id2.serialize match {
+        case CompositeName("and/or", b) => assert(b === "hans peter")
+      }
+      id2.serialize match {
+        case CompositeName(a, "hans peter") => assert(a === "and/or")
+      }
     }
 
     "concatenate with another CompositeName" in {
