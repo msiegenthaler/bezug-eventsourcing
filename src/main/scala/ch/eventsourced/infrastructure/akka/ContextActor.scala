@@ -69,6 +69,7 @@ class ContextActor(val definition: BoundedContextBackendType, pubSub: ActorRef, 
       context stop self
 
     case msg: AggregateActor.Command =>
+      log.debug(s"processing $msg")
       commandDistributor forward msg
   }
 }
