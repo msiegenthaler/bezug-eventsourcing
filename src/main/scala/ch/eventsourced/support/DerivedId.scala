@@ -10,7 +10,7 @@ trait DerivedId[Base] {
       case _ => false
     }
     override def hashCode = base.hashCode ^ DerivedId.this.hashCode
-    override def toString = s"Ref-to-$base"
+    override def toString = s"${DerivedId.this.getClass.getSimpleName.filterNot(_ == '$')}-$base"
   }
 
   protected def generateId(base: Base) = new Id(base)

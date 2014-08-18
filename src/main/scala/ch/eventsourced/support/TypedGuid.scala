@@ -11,7 +11,7 @@ trait TypedGuid {
       case _ => false
     }
     override def hashCode = guid.hashCode
-    override def toString = guid.toString
+    override def toString = s"${TypedGuid.this.getClass.getSimpleName.filterNot(_ == '$')}-$guid"
   }
 
   protected def generateId = new Id(Guid.generate)

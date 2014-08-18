@@ -32,7 +32,7 @@ object EventData {
             event == e.event
         case _ => false
       }
-      override def toString = s"EventData($aggregateType, $sequence, $event)"
+      override def toString = s"EventData($aggregateType, $aggregate, $sequence, $event)"
     }
   }
   def unapply(e: Any): Option[(AggregateType, Any, Long, Any)] = e match {

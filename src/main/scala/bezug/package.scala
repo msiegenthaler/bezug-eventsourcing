@@ -8,7 +8,9 @@ package object bezug {
 
   case class Person(id: Person.Id)
   object Person {
-    case class Id(id: String)
+    case class Id(id: String) {
+      override def toString = s"Person-$id"
+    }
     object Id {
       implicit def stringSerialize: StringSerialize[Id] = new StringSerialize[Id] {
         def serialize(value: Id) = value.id
