@@ -36,6 +36,8 @@ class CleannessTracker[Id](name: CompositeName) {
           maybeSnapshot()
           sender() ! ack
         }
+      case MarkUnclean(id, ack) =>
+        sender() ! ack
     }
 
     def receiveRecover = {
