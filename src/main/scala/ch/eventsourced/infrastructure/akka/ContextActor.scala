@@ -50,7 +50,7 @@ class ContextActor(val definition: BoundedContextBackendType, pubSub: ActorRef, 
 
   val commandDistributor: ActorRef = {
     //TODO the unknown error.. from the definition..
-    val props = AggregateCommandDistributor.props[definition.Command, definition.Error](aggregateMgrs.toMap, ???)
+    val props = AggregateCommandDistributor.props[definition.Command, definition.Error](aggregateMgrs.toMap, definition.unknownCommand)
     context.actorOf(props, "command-distributor")
   }
 

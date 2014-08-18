@@ -14,12 +14,15 @@ trait BoundedContextBackend[Command, Event, Error] {
 
 /** Definition of a bounded context. */
 trait BoundedContextBackendType {
+  def name: String
+
   type Command
   type Event
   type Error
+  def unknownCommand: Error
+
   type Backend = BoundedContextBackend[Command, Event, Error]
 
-  def name: String
   def aggregates: Traversable[CommonAggregateType]
   def processManagers: Traversable[CommonProcessManagerType]
   def readModels: Traversable[ReadModelRegistration]
