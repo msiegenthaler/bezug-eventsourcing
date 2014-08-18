@@ -40,7 +40,7 @@ object AggregateSubscriptionManager {
     def waitingForStart: Receive = {
       case Start(at) =>
         log.debug(s"Event handling started, expecting live events starting at $at")
-        pos = at
+        pos = at - 1
         context become running
         unstashAll()
       case other => stash()
@@ -117,7 +117,7 @@ object AggregateSubscriptionManager {
       val props = AggregateSubscription.props(id, partition, target, journalReplay, start)
       val actor = context actorOf props
       subscriptionActors += id -> actor
-      actor ! AggregateSubscription.Start(pos)
+      actor ! AggregateSubscription.Start(pos + 1)
     }
   }
 
