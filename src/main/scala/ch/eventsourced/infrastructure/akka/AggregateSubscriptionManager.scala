@@ -47,6 +47,7 @@ object AggregateSubscriptionManager {
     }
     def running: Receive = {
       case OnEvent(event, ack) =>
+        pos = event.sequence
         val origin = sender()
         implicit val timeout = Timeout(5.seconds)
         val ackFutures = subscriptionActors.values.map { actor =>
