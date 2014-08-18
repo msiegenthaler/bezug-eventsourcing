@@ -46,11 +46,13 @@ class LocalSharder(
         // Start possibly dirty child and try to stop it cleanly
         startChild(id) ! PassivateIfPossible
 
+      case ForwardMsg(id, msg) =>
+        children.getOrElse(id, startChild(id)) forward msg
+
       case msg =>
         sharded.messageSelector.lift(msg).map { id =>
           log.debug(s"forwarding $msg to $id")
-          children.getOrElse(id, startChild(id)) forward msg
-          tracker ! MarkUnclean(id)
+          tracker ! MarkUnclean(id, ForwardMsg(id, msg))
         }.getOrElse(log.info(s"discarding $msg"))
     }
 
@@ -61,5 +63,7 @@ class LocalSharder(
       children += id -> child
       child
     }
+
+    private case class ForwardMsg(to: Id, msg: Any)
   }
 }

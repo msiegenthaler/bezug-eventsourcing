@@ -9,7 +9,7 @@ import ch.eventsourced.infrastructure.akka.CompositeName
   * unclean.
   */
 class CleannessTracker[Id](name: CompositeName) {
-  case class MarkUnclean(id: Id)
+  case class MarkUnclean(id: Id, ack: Any)
   case class MarkClean(id: Id)
   case class NeedsCleaning(id: Id)
 
@@ -26,12 +26,18 @@ class CleannessTracker[Id](name: CompositeName) {
 
     def receiveCommand = {
       case MarkClean(id) if dirty(id) =>
-        persist(MarkedClean(id))(processEvent)
-        maybeSnapshot()
-      case MarkedUnclean(id) if !dirty(id) =>
-        persist(MarkedUnclean(id))(processEvent)
-        maybeSnapshot()
+        persist(MarkedClean(id)) { event =>
+          processEvent(event)
+          maybeSnapshot()
+        }
+      case MarkUnclean(id, ack) if !dirty(id) =>
+        persist(MarkedUnclean(id)) { event =>
+          processEvent(event)
+          maybeSnapshot()
+          sender() ! ack
+        }
     }
+
     def receiveRecover = {
       case event: Event => processEvent(event)
       case SnapshotOffer(_, s: Set[Id]) =>
