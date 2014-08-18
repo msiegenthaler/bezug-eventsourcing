@@ -50,7 +50,6 @@ class LocalSharder(
 
       case msg =>
         sharded.messageSelector.lift(msg).map { id =>
-          log.debug(s"forwarding $msg to $id")
           tracker ! MarkUnclean(id, ForwardMsg(id, sender(), msg))
         }.getOrElse(log.info(s"discarding $msg"))
     }
