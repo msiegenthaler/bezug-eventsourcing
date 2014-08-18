@@ -13,12 +13,9 @@ object Faktura extends AggregateType with TypedGuid {
     def faktura: Id
   }
   case class FakturaBeauftragen(schuldner: Person, register: Register, steuerjahr: Jahr,
-    valuta: Datum, grundlagen: Grundlagen, positionen: Traversable[FakturaBeauftragen.Position],
+    valuta: Datum, grundlagen: Grundlagen, positionen: Traversable[FakturaPosition],
     faktura: Id = generateId)
     extends Command
-  object FakturaBeauftragen {
-    case class Position(institution: Institution, kategorie: KatId, betrag: Betrag)
-  }
 
   sealed trait Event extends Bezug.Event
   case class FakturaKopfErstellt(kopf: FakturaKopf) extends Event
