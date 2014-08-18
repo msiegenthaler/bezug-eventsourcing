@@ -27,16 +27,19 @@ trait BoundedContextBackendType {
   def processManagers: Traversable[CommonProcessManagerType]
   def readModels: Traversable[ReadModelRegistration]
 
+  protected def Aggregates(aggregates: CommonAggregateType*): Set[CommonAggregateType] = aggregates.toSet
+  protected def ProcessManagers(pms: CommonProcessManagerType*): Set[CommonProcessManagerType] = pms.toSet
+
   // Needed to prove that the Command/Event type is actually a supertype of the types used inside aggregates/process managers
   private type Cmd = Command
   private type Evt = Event
   private type Err = Error
-  private type CommonAggregateType = AggregateType {
+  protected type CommonAggregateType = AggregateType {
     type Command <: Cmd
     type Event <: Evt
     type Error <: Err
   }
-  private type CommonProcessManagerType = ProcessManagerType {
+  protected type CommonProcessManagerType = ProcessManagerType {
     type Command <: Cmd
     type Error <: Err
   }
