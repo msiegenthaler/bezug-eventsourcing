@@ -77,7 +77,7 @@ trait AggregateType {
       override def toString = s"AggregateKey($aggregateType, $id)"
     }
     def unapply(key: AggregateKey): Option[Id] = {
-      if (key.aggregateType == AggregateType.this) Some(key.id.asInstanceOf)
+      if (key.aggregateType == AggregateType.this) Some(key.id.asInstanceOf[Id])
       else None
     }
   }
