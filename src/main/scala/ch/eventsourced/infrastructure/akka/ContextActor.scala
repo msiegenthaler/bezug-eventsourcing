@@ -2,8 +2,9 @@ package ch.eventsourced.infrastructure.akka
 
 import java.net.URLEncoder
 import scala.concurrent.duration._
-import akka.actor.{Props, Actor, ActorRef}
+import akka.actor.{PoisonPill, Props, Actor, ActorRef}
 import ch.eventsourced.api.{AggregateType, BoundedContextBackendType}
+import ch.eventsourced.infrastructure.akka.localsharding.LocalSharder
 import pubsub.Topic
 import ContextActor._
 
@@ -15,11 +16,14 @@ class ContextActor(val definition: BoundedContextBackendType, pubSub: ActorRef, 
     context.actorOf(props, URLEncoder.encode(s"pubSub-publisher-for-${aggregate.name}", "UTF-8"))
   }
 
+  val sharder = new LocalSharder()
+
   val processMgrs = definition.processManagers.map { pmt =>
     val manager = new ProcessManagerActor[pmt.Id, pmt.Command, pmt.Error](definition.name, pmt,
       commandDistributor)
-    val actor: ActorRef = ??? // TODO start with sharding
-  val initiator: ActorRef = ??? // TODO start with sharding
+    val name = CompositeName("process-manager") / manager.name
+    val actor = context.actorOf(sharder.props(manager), (name / "sharder").serialize)
+    val initiator = context.actorOf(manager.initiator.props(actor), (name / "initiator").serialize)
     (manager, actor, initiator)
   }
 
@@ -39,7 +43,8 @@ class ContextActor(val definition: BoundedContextBackendType, pubSub: ActorRef, 
       inititorsFor(aggregateType)
 
     val manager = new AggregateActor(definition.name, aggregateType, subscriptions)
-    val actor: ActorRef = ??? // TODO start with sharding
+    val name = CompositeName("aggregate") / manager.name / "sharder"
+    val actor = context.actorOf(sharder.props(manager), name.serialize)
     (manager, actor)
   }
 
@@ -53,7 +58,10 @@ class ContextActor(val definition: BoundedContextBackendType, pubSub: ActorRef, 
 
   def receive = {
     case Shutdown =>
-      //TODO stop shards?
+      commandDistributor ! PoisonPill
+      aggregateMgrs.map(_._2).foreach(_ ! LocalSharder.Shutdown)
+      processMgrs.map(_._2).foreach(_ ! LocalSharder.Shutdown)
+      processMgrs.map(_._3).foreach(_ ! PoisonPill)
       context stop self
     case msg: AggregateActor.Command => commandDistributor forward msg
   }
