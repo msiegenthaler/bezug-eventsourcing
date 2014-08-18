@@ -1,15 +1,7 @@
 import ch.eventsourced.api.StringSerialize
 package object bezug {
-
   case class Betrag(value: BigDecimal) {
     def +(other: Betrag) = Betrag(value + other.value)
-  }
-  class Datum
-  case class DatumBereich(von: Datum, bis: Datum)
-  class Jahr
-  class Zeitpunkt
-  object Zeitpunkt {
-    def now: Zeitpunkt = ???
   }
 
   case class KatId(name: String)
@@ -34,5 +26,4 @@ package object bezug {
       def periodisch = true
     }
   }
-
 }
