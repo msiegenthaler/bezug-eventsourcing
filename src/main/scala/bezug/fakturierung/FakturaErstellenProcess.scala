@@ -18,7 +18,7 @@ object FakturaErstellenProcess extends ProcessManagerType with DerivedId[Faktura
     case Faktura.EventData(id, _, FakturaKopfErstellt(kopf)) => generateId(id)
   }
 
-  type Command = Any
+  type Command = Bezug.Command
   type Error = Nothing
   sealed trait Transition
   case class ToFakturaFallErmitteln(schuldner: Schuldner.Id, fakutura: Faktura.Id, kopf: FakturaKopf) extends Transition

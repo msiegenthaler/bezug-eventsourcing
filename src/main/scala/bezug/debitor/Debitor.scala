@@ -8,7 +8,7 @@ import Person.Id.stringSerialize
 object Debitor extends AggregateType with DerivedId[Person.Id] {
   def name = "Debitor"
 
-  sealed trait Command {
+  sealed trait Command extends Bezug.Command {
     def debitor: Id
   }
   case class InkassoFallEröffnen(person: Person.Id, register: Register, steuerjahr: Jahr, referenz: Any) extends Command {
@@ -17,7 +17,7 @@ object Debitor extends AggregateType with DerivedId[Person.Id] {
   case class InkassoFallHinzufügen(debitor: Id, inkassofall: InkassoFall.Id, referenz: Any) extends Command
   def aggregateIdForCommand(command: Command) = Some(command.debitor)
 
-  sealed trait Event
+  sealed trait Event extends Bezug.Event
   case class InkassoFallErstellenVorbereitet(register: Register, steuerjahr: Jahr, referenz: Any) extends Event
   case class InkassoFallEröffnet(inkassoFall: InkassoFall.Id, referenz: Any) extends Event
 

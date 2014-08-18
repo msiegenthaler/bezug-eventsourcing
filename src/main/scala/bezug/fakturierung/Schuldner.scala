@@ -9,7 +9,7 @@ import Person.Id.stringSerialize
 object Schuldner extends AggregateType with DerivedId[Person.Id] {
   def name = "Schuldner"
 
-  sealed trait Command {
+  sealed trait Command extends Bezug.Command {
     def schuldner: Id
   }
   case class FakturaHinzufügen(faktura: Faktura.Id, person: Person, register: Register, steuerjahr: Jahr) extends Command {
@@ -18,7 +18,7 @@ object Schuldner extends AggregateType with DerivedId[Person.Id] {
   case class InkassoFallZuordnen(schuldner: Id, zu: FakturaFall.Id, inkassoFall: InkassoFall.Id) extends Command
   def aggregateIdForCommand(command: Command) = Some(command.schuldner)
 
-  sealed trait Event
+  sealed trait Event extends Bezug.Event
   case class FakturaFallErstellt(fall: FakturaFall.Id, person: Person.Id, register: Register, steuerjahr: Jahr, aufgrund: Faktura.Id) extends Event
   case class FakturaHinzugefügt(zu: FakturaFall.Id, faktura: Faktura.Id) extends Event
   case class InkassoFallZugeordnet(zu: FakturaFall.Id, inkassoFall: InkassoFall.Id) extends Event

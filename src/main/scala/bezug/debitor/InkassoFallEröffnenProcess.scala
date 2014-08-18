@@ -14,7 +14,7 @@ object InkassoFallEröffnenProcess extends ProcessManagerType with TypedGuid {
   def initiate = {
     case Debitor.Event(_: InkassoFallErstellenVorbereitet) => generateId
   }
-  type Command = Any
+  type Command = Bezug.Command
   type Error = Nothing
   sealed trait Transition
   case class MitInkassoFall(debitor: Debitor.Id, inkassoFall: InkassoFall.Id, referenz: Any) extends Transition

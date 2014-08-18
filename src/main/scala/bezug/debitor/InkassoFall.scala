@@ -9,13 +9,13 @@ object InkassoFall extends AggregateType with TypedGuid {
 
   //  case class InkassoKey(debitor: Debitor.Id, register: Register, steuerjahr: Jahr, laufnummer: Int)
 
-  sealed trait Command {
+  sealed trait Command extends Bezug.Command {
     def inkassoFall: Id
   }
   case class Eröffnen(debitor: Debitor.Id, register: Register, steuerjahr: Jahr, inkassoFall: Id = generateId) extends Command
   def aggregateIdForCommand(command: Command) = Some(command.inkassoFall)
 
-  sealed trait Event
+  sealed trait Event extends Bezug.Event
   case class Eröffnet(debitor: Debitor.Id, register: Register, steuerjahr: Jahr) extends Event
 
   sealed trait Error

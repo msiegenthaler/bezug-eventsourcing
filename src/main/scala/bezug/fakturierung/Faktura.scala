@@ -9,7 +9,7 @@ object Faktura extends AggregateType with TypedGuid {
 
   case class Grundlagen(fremdreferenz: String, versandInnerhalb: DatumBereich, art: String)
 
-  sealed trait Command {
+  sealed trait Command extends Bezug.Command {
     def faktura: Id
   }
   case class FakturaBeauftragen(schuldner: Person, register: Register, steuerjahr: Jahr,
@@ -20,7 +20,7 @@ object Faktura extends AggregateType with TypedGuid {
     case class Position(institution: Institution, kategorie: KatId, betrag: Betrag)
   }
 
-  sealed trait Event
+  sealed trait Event extends Bezug.Event
   case class FakturaKopfErstellt(kopf: FakturaKopf) extends Event
   case class FakturaPositionHinzugefügt(position: FakturaPosition) extends Event
   case class FakturaVervollständigt(kopf: FakturaKopf, positionen: Seq[FakturaPosition]) extends Event

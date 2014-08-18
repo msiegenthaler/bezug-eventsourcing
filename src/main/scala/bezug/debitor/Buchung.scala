@@ -24,7 +24,7 @@ object Buchung extends AggregateType with TypedGuid {
   }
 
 
-  sealed trait Command {
+  sealed trait Command extends Bezug.Command {
     def buchung: Id
   }
   case class Buchen(valuta: Datum, urbeleg: Urbeleg, positionen: Seq[DetailPosition], buchung: Id = generateId)
@@ -32,7 +32,7 @@ object Buchung extends AggregateType with TypedGuid {
   def aggregateIdForCommand(command: Command) = Some(command.buchung)
 
 
-  sealed trait Event
+  sealed trait Event extends Bezug.Event
   case class Gebucht(zeitpunkt: Zeitpunkt, valuta: Datum, urbeleg: Urbeleg, positionen: Seq[DetailPosition])
     extends Event
   sealed trait Error

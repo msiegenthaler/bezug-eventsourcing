@@ -19,7 +19,7 @@ object InkassoFallEröffnenProcess extends ProcessManagerType with DerivedId[Fak
     case Schuldner.EventData(_, _, e: FakturaFallErstellt) => generateId(e.fall)
   }
 
-  type Command = Any
+  type Command = Bezug.Command
   type Error = Nothing
   sealed trait Transition
   case class ToInkassoFallZuordnen(schuldner: Schuldner.Id, debitor: Debitor.Id,
