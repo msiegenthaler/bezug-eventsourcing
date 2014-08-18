@@ -49,7 +49,6 @@ class ContextActor(val definition: BoundedContextBackendType, pubSub: ActorRef, 
   }
 
   val commandDistributor: ActorRef = {
-    //TODO the unknown error.. from the definition..
     val props = AggregateCommandDistributor.props[definition.Command, definition.Error](aggregateMgrs.toMap, definition
       .unknownCommand)
     context.actorOf(props, "command-distributor")
@@ -57,7 +56,8 @@ class ContextActor(val definition: BoundedContextBackendType, pubSub: ActorRef, 
 
   //TODO read models
 
-  log.info(s"started context ${definition.name} (${aggregateMgrs.size} aggregates, ${processMgrs.size} process managers)")
+  val counts = s"${aggregateMgrs.size} aggregates, ${processMgrs.size} process managers"
+  log.info(s"started context ${definition.name} ($counts)")
 
   def receive = {
     case Shutdown(ack) =>
@@ -68,7 +68,9 @@ class ContextActor(val definition: BoundedContextBackendType, pubSub: ActorRef, 
       processMgrs.map(_._3).foreach(_ ! PoisonPill)
       sender() ! ack
       context stop self
-    case msg: AggregateActor.Command => commandDistributor forward msg
+
+    case msg: AggregateActor.Command =>
+      commandDistributor forward msg
   }
 }
 

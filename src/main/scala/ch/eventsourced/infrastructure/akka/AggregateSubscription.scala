@@ -135,7 +135,8 @@ object AggregateSubscription {
       } else {
         //enqueue it
         buffer += event
-        if (buffer.size > Config.maxBufferSize) throw new RuntimeException(s"Event buffer exceeded max size of ${Config.maxBufferSize}")
+        def max = Config.maxBufferSize
+        if (buffer.size > max) throw new RuntimeException(s"Event buffer exceeded max size of $max")
       }
     }
 
