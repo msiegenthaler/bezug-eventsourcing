@@ -2,14 +2,14 @@ package ch.eventsourced.infrastructure.akka
 
 import java.net.URLEncoder
 import scala.concurrent.duration._
-import akka.actor.{PoisonPill, Props, Actor, ActorRef}
+import akka.actor._
 import ch.eventsourced.api.{AggregateType, BoundedContextBackendType}
 import ch.eventsourced.infrastructure.akka.localsharding.LocalSharder
 import pubsub.Topic
 import ContextActor._
 
 /** Actor responsible for the bounded context. */
-class ContextActor(val definition: BoundedContextBackendType, pubSub: ActorRef, config: Config) extends Actor {
+class ContextActor(val definition: BoundedContextBackendType, pubSub: ActorRef, config: Config) extends Actor with ActorLogging {
   def createPubSubPublisher(aggregate: AggregateType) = {
     val topic = config.topicFor(definition.name, aggregate)
     val props = new AggregateEventToPubSubPublisher(aggregate).props(pubSub, Set(topic))
@@ -57,8 +57,11 @@ class ContextActor(val definition: BoundedContextBackendType, pubSub: ActorRef, 
 
   //TODO read models
 
+  log.info(s"started context ${definition.name} (${aggregateMgrs.size} aggregates, ${processMgrs.size} process managers)")
+
   def receive = {
     case Shutdown(ack) =>
+      log.info(s"shutting down context ${definition.name}")
       commandDistributor ! PoisonPill
       aggregateMgrs.map(_._2).foreach(_ ! LocalSharder.Shutdown)
       processMgrs.map(_._2).foreach(_ ! LocalSharder.Shutdown)
