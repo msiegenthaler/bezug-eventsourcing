@@ -78,15 +78,18 @@ class AggregateActor[I, C, E](contextName: String,
     val subscriptionManager = {
       def journalProps(from: Long, until: Long) = journalReplay.props(id, persistenceId, from, until)
       val props = AggregateSubscriptionManager.props(name, journalProps)
-      val mgr = context.actorOf(props, "SubscriptionManager")
+      val mgr = context.actorOf(props, "subscription-manager")
       eventSubscriptions foreach {
         case (subId, target) => mgr ! AddManualSubscription(subId, persistenceId, target)
       }
       mgr
     }
-    def eventTarget = context actorOf OrderPreservingAck.props(subscriptionManager,
-      retryAfter = 1.second, retryLimit = 120, maxInFlight = 2000) {
-      case OnEvent(_, ack) => _ == ack
+    val eventTarget = {
+      val props = OrderPreservingAck.props(subscriptionManager,
+        retryAfter = 1.second, retryLimit = 120, maxInFlight = 2000) {
+        case OnEvent(_, ack) => _ == ack
+      }
+      context.actorOf(props, "event-target")
     }
 
     log.debug(s"Starting aggregator actor for ${aggregateType.name} with id $persistenceId")

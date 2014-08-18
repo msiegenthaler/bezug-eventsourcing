@@ -49,9 +49,12 @@ object AggregateSubscription {
     override val supervisorStrategy = OneForOneStrategy() {
       case _ => Escalate // restart this actor if the journal fails.
     }
-    val target = context actorOf OrderPreservingAck.props(_target,
-      retryAfter = Config.retryTimeout, retryLimit = Config.retries, maxInFlight = 2) {
-      case AggregateEvent(_, _, ack) => _ == ack
+    val target = {
+      val props = OrderPreservingAck.props(_target,
+        retryAfter = Config.retryTimeout, retryLimit = Config.retries, maxInFlight = 2) {
+        case AggregateEvent(_, _, ack) => _ == ack
+      }
+      context.actorOf(props, "target")
     }
 
     //TODO add overflow protection using aggregate journal backpressure and discarding of live events (reread from journal)
@@ -60,7 +63,7 @@ object AggregateSubscription {
       case Start(liveFrom) =>
         if (liveFrom > pos + 1) {
           //load "missing" events from journal
-          context actorOf journalReplay(pos + 1, liveFrom - 1)
+          context.actorOf(journalReplay(pos + 1, liveFrom - 1), "journal-replay")
           log.debug(s"Started with journal replay (next=${pos + 1}, live events start at $liveFrom)")
         } else {
           log.debug(s"Started with live-events only (next=${pos + 1}, live events start at $liveFrom)")

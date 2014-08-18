@@ -67,10 +67,13 @@ class ProcessManagerActor[I, C, E](contextName: String,
    */
   private class Process(publicRef: ActorRef, id: Id, name: CompositeName) extends PersistentActor with ActorLogging {
     val persistenceId = name.serialize
-    val commandTarget = context actorOf OrderPreservingAck.props(commandDistributor) {
-      case Execute(_, ok, fail) => msg => msg == ok || msg == fail
-      case s: SubscribeToAggregate => _ == s.ack
-      case s: UnsubscribeFromAggregate => _ == s.ack
+    val commandTarget = {
+      val props = OrderPreservingAck.props(commandDistributor) {
+        case Execute(_, ok, fail) => msg => msg == ok || msg == fail
+        case s: SubscribeToAggregate => _ == s.ack
+        case s: UnsubscribeFromAggregate => _ == s.ack
+      }
+      context.actorOf(props, "command-target")
     }
 
     private var state = seed(id)

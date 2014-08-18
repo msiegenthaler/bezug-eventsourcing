@@ -29,7 +29,7 @@ class PassivationManager[Id](sharded: ShardedActor[Id], passivateAfter: Duration
       getOrElse(throw new IllegalStateException(s"cannot parse id  from ${context.self.path.name}"))
     def name = sharded.name / serializeId(id)
 
-    val element = context actorOf sharded.props(publicRef, id, name)
+    val element = context.actorOf(sharded.props(publicRef, id, name), "actor")
     context watch element
     override val supervisorStrategy = AllForOneStrategy() {
       case _ => Escalate
