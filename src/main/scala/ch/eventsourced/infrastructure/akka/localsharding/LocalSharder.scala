@@ -22,7 +22,7 @@ class LocalSharder(
     import cleannessTracker.{MarkClean, MarkUnclean, NeedsCleaning}
     import passivationManager.{RequestCleanStop, Passivated, PassivateIfPossible}
 
-    val tracker = context actorOf cleannessTracker.props
+    val tracker = context.actorOf(cleannessTracker.props, "cleanness-tracker")
     var children = Map.empty[Id, ActorRef]
 
 
@@ -45,13 +45,13 @@ class LocalSharder(
         // Start possibly dirty child and try to stop it cleanly
         startChild(id) ! PassivateIfPossible
 
-      case ForwardMsg(id, msg) =>
-        children.getOrElse(id, startChild(id)) forward msg
+      case ForwardMsg(id, sender, msg) =>
+        children.getOrElse(id, startChild(id)).tell(msg, sender)
 
       case msg =>
         sharded.messageSelector.lift(msg).map { id =>
           log.debug(s"forwarding $msg to $id")
-          tracker ! MarkUnclean(id, ForwardMsg(id, msg))
+          tracker ! MarkUnclean(id, ForwardMsg(id, sender(), msg))
         }.getOrElse(log.info(s"discarding $msg"))
     }
 
@@ -63,7 +63,7 @@ class LocalSharder(
       child
     }
 
-    private case class ForwardMsg(to: Id, msg: Any)
+    private case class ForwardMsg(to: Id, sender: ActorRef, msg: Any)
   }
 }
 
