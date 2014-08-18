@@ -1,7 +1,8 @@
 package bezug
 
 import bezug.Monat.April
-import bezug.debitor.Buchung
+import bezug.debitor.{BelegartUrbeleg, Buchung}
+import bezug.debitor.Buchung.Urbeleg
 import bezug.fakturierung.Faktura.{FakturaPosition, FakturaBeauftragen}
 import ch.eventsourced.api.BoundedContextBackend
 import pubsub.Producer.Publish
@@ -64,16 +65,15 @@ class BezugSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSend
 
       assert(await(backend.execute(cmd)).isSuccess)
 
-      Thread.sleep(3000)
-
-      println("#####################")
-      (1 to 10) foreach { _ =>
-        val msg = pubSub.expectMsgClass(2.seconds, classOf[Publish])
-        pubSub.reply(msg.onPublished)
-        println(s"@@@@ Received: $msg")
+      pubSub.fishForMessage(hint = "Gebucht") {
+        case Publish(_, _, Buchung.Event(Buchung.Gebucht(_, `valuta`, Urbeleg(BelegartUrbeleg.Faktura), Nil)), ack) =>
+          pubSub reply ack
+          true
+        case Publish(_, _, event, ack) =>
+          //println(s"- $event")
+          pubSub reply ack
+          false
       }
-      println("#####################")
-      //TODO expect events
     }
   }
 }
