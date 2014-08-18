@@ -19,8 +19,7 @@ class ContextActor(val definition: BoundedContextBackendType, pubSub: ActorRef, 
   val sharder = new LocalSharder()
 
   val processMgrs = definition.processManagers.map { pmt =>
-    val manager = new ProcessManagerActor[pmt.Id, pmt.Command, pmt.Error](definition.name, pmt,
-      commandDistributor)
+    val manager = new ProcessManagerActor[pmt.Id, pmt.Command, pmt.Error](definition.name, pmt, context.self)
     val name = CompositeName("process-manager") / manager.name
     val actor = context.actorOf(sharder.props(manager), (name / "sharder").urlEncoded)
     val initiator = context.actorOf(manager.initiator.props(actor), (name / "initiator").urlEncoded)
