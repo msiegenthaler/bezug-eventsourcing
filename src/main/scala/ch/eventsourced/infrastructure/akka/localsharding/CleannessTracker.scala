@@ -20,9 +20,9 @@ class CleannessTracker[Id](name: CompositeName) {
     var dirty = Set.empty[Id]
 
     def receiveCommand = {
-      case MarkClean(id) =>
+      case MarkClean(id) if dirty(id) =>
         persist(MarkedClean(id))(processEvent)
-      case MarkedUnclean(id) =>
+      case MarkedUnclean(id) if !dirty(id) =>
         persist(MarkedUnclean(id))(processEvent)
     }
     def receiveRecover = {
@@ -35,10 +35,8 @@ class CleannessTracker[Id](name: CompositeName) {
     }
 
     def processEvent(event: Event) = event match {
-      case MarkedClean(id) =>
-        dirty -= id
-      case MarkedUnclean(id) =>
-        dirty += id
+      case MarkedClean(id) => dirty -= id
+      case MarkedUnclean(id) => dirty += id
     }
   }
   private sealed trait Event
