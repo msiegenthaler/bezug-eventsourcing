@@ -1,4 +1,5 @@
-package bezug.fakturierung
+package bezug
+package fakturierung
 
 import bezug.debitor.Debitor
 import bezug.debitor.Debitor.InkassoFallEröffnet
@@ -21,19 +22,19 @@ object InkassoFallEröffnenProcess extends ProcessManagerType with DerivedId[Fak
   type Command = Any
   type Error = Nothing
   sealed trait Transition
-  case class ToInkassoFallZuordnen(schuldner: Schuldner.Id, faktura: Faktura.Id, fakturaFall: FakturaFall.Id) extends Transition
+  case class ToInkassoFallZuordnen(schuldner: Schuldner.Id, debitor: Debitor.Id,
+    faktura: Faktura.Id, fakturaFall: FakturaFall.Id) extends Transition
 
   sealed trait Manager extends BaseManager
   case class ZuDebitorHinzufügen(id: Id) extends Manager {
     def handle = {
       case Schuldner.EventData(schuldner, _, event: FakturaFallErstellt) =>
         val cmd = Debitor.InkassoFallEröffnen(event.person, event.register, event.steuerjahr, event.fall)
-        Continue(ToInkassoFallZuordnen(schuldner, event.aufgrund, event.fall)) +
-          cmd +
-          Subscribe(Debitor.AggregateKey(cmd.debitor))
+        Continue(ToInkassoFallZuordnen(schuldner, cmd.debitor, event.aufgrund, event.fall)) + cmd
     }
     def applyTransition = {
-      case ToInkassoFallZuordnen(schuldner, faktura, fall) => InkassoFallZuordnen(id, schuldner, faktura, fall)
+      case ToInkassoFallZuordnen(schuldner, debitor, faktura, fall) =>
+        InkassoFallZuordnen(id, schuldner, faktura, fall) + Subscribe(Debitor.AggregateKey(debitor))
     }
   }
   case class InkassoFallZuordnen(id: Id, schuldner: Schuldner.Id, faktura: Faktura.Id, fakturaFall: FakturaFall.Id) extends Manager {
