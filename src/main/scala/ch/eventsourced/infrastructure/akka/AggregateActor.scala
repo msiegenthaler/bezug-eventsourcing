@@ -96,7 +96,9 @@ class AggregateActor[I, C, E](contextName: String,
 
     def receiveCommand = {
       case Execute(Command(`id`, cmd), success, fail) =>
-        state.execute(cmd) match {
+        val res = state.execute(cmd)
+        log.debug(s"executing $cmd\n  on $state\n  ==> $res")
+        res match {
           case Success(events) if events.isEmpty =>
             sender() ! success
           case Success(events) =>

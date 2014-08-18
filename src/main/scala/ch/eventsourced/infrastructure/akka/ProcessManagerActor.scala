@@ -87,6 +87,7 @@ class ProcessManagerActor[I, C, E](contextName: String,
     //Live messages
     def receiveCommand = {
       case InitiateProcess(`id`, event, ack) =>
+        log.debug(s"initiated by $event")
         persist(Started(event.aggregateKey, event.sequence)) { e =>
           addSubscription(e.from, event.sequence)
           //subscription will send us the event again
@@ -111,7 +112,9 @@ class ProcessManagerActor[I, C, E](contextName: String,
         terminateIfDone()
 
       case AggregateEvent(subId, event, ack) if !done && activeSubscriptions.contains(subId) =>
-        state.handle.lift(event).map {
+        val res = state.handle.lift(event)
+        log.debug(s"processing $event\n  at $state\n  ==> res")
+        res.map({
           case Continue(transition, cmds) =>
             cmds.foreach(emitCommand)
             persist(StateTransition(transition)) { t =>
@@ -128,7 +131,7 @@ class ProcessManagerActor[I, C, E](contextName: String,
               terminateIfDone()
               sender() ! ack
             }
-        }.getOrElse(sender() ! ack)
+        }).getOrElse(sender() ! ack)
 
       case AggregateEvent(subId, event, ack) if !activeSubscriptions.contains(subId) =>
         //unrequested event, try to remove the subscription
