@@ -1,7 +1,8 @@
 package bezug
 package fakturierung
 
-import bezug.debitor.Buchung
+import bezug.debitor.{BelegartUrbeleg, Buchung}
+import bezug.debitor.Buchung.Urbeleg
 import bezug.fakturierung.Faktura.{FakturaKopf, FakturaKopfErstellt}
 import bezug.fakturierung.Schuldner.{InkassoFallZugeordnet, FakturaFall, FakturaFallErstellt}
 import ch.eventsourced.api.ProcessManager.{Unsubscribe, Subscribe}
@@ -57,9 +58,9 @@ object FakturaErstellenProcess extends ProcessManagerType with DerivedId[Faktura
   case class BuchungErstellen(id: Id, faktura: Faktura.Id, kopf: FakturaKopf, fakturaFall: FakturaFall.Id) extends Manager {
     def handle = {
       case Schuldner.Event(InkassoFallZugeordnet(`fakturaFall`, inkassoFall)) =>
-        val positionen = ???
-        val cmd = Buchung.Buchen(kopf.valuta, ???, positionen)
-        Completed() + cmd
+        //TODO
+        val urbeleg = Urbeleg(BelegartUrbeleg.Faktura)
+        Completed() + Buchung.Buchen(kopf.valuta, urbeleg, Nil)
     }
     def applyTransition = PartialFunction.empty
   }

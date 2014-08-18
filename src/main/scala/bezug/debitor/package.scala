@@ -2,7 +2,11 @@ package bezug
 
 package object debitor {
   case class InkassoKey(person: Person, register: Register, steuerjahr: Jahr, laufnummer: Int)
-  trait BelegartUrbeleg
+
+  sealed trait BelegartUrbeleg
+  object BelegartUrbeleg {
+    case object Faktura extends BelegartUrbeleg
+  }
 
   sealed trait SollHaben
   case class Soll(betrag: Betrag) extends SollHaben
