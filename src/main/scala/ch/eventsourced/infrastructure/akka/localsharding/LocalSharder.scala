@@ -13,8 +13,6 @@ class LocalSharder(
 
   def props(sharded: ShardedActor[_]): Props = Props(new LocalSharder(sharded))
 
-  object Shutdown
-
   private class LocalSharder[Id](sharded: ShardedActor[Id]) extends Actor with ActorLogging {
     val passivationManager = new PassivationManager(sharded, passivateAfter = passivateAfter, passivationWaitTime = passivationWaitTime, stopWaitTime = stopWaitTime)
     val cleannessTracker = new CleannessTracker[Id](sharded.name)
@@ -28,7 +26,7 @@ class LocalSharder(
 
 
     def receive = {
-      case Shutdown =>
+      case LocalSharder.Shutdown =>
         context stop self
 
       case RequestCleanStop(from, ack) if children.contains(from) =>
@@ -66,4 +64,8 @@ class LocalSharder(
 
     private case class ForwardMsg(to: Id, msg: Any)
   }
+}
+
+object LocalSharder {
+  object Shutdown
 }
