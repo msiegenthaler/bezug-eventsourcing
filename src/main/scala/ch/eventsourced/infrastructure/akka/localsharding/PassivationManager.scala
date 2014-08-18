@@ -12,6 +12,15 @@ class PassivationManager[Id](sharded: ShardedActor[Id], passivateAfter: Duration
 
   def props(publicRef: ActorRef) = Props(new PassivationActor(publicRef))
 
+  sealed trait Command
+  sealed trait Event
+  /** Send to the actor to ask for a clean passivation if the actors state is stable. Might result in a RequestCleanStop. */
+  case object PassivateIfPossible extends Command
+  /** Sent to the parent when a controlled stop is requested. The parent must not forward any new messages after the ack. */
+  case class RequestCleanStop(id: Id, ack: Any) extends Event
+  /** Sent to the parent when it has been cleanly stopped with passivation (no pending tasks). */
+  case class Passivated(id: Id) extends Event
+
   private class PassivationActor(publicRef: ActorRef) extends Actor with ActorLogging {
     import sharded._
 
@@ -45,10 +54,24 @@ class PassivationManager[Id](sharded: ShardedActor[Id], passivateAfter: Duration
     }
     def passivating: Receive = {
       case PassivationOk =>
-        passivate()
+        askParentForStop()
 
       case ReceiveTimeout | PassivationNotOk =>
         resumeNormalOperation()
+
+      case msg if sender() != element =>
+        //abort passivation since we have another message to process
+        element forward msg
+        resumeNormalOperation()
+    }
+
+    def askParentForStop() = {
+      log.debug("passivation ok, asking the parent")
+      context.parent ! RequestCleanStop(id, StopOk)
+      context become waitForParentsOk
+    }
+    def waitForParentsOk: Receive = {
+      case StopOk => passivate()
 
       case msg if sender() != element =>
         //abort passivation since we have another message to process
@@ -66,6 +89,7 @@ class PassivationManager[Id](sharded: ShardedActor[Id], passivateAfter: Duration
     def waitingForStop: Receive = {
       case Terminated if sender() == element =>
         log.debug("stopped")
+        context.parent ! Passivated(id)
         context stop self
 
       case ReceiveTimeout =>
@@ -75,4 +99,5 @@ class PassivationManager[Id](sharded: ShardedActor[Id], passivateAfter: Duration
   }
   private case object PassivationOk
   private case object PassivationNotOk
+  private case object StopOk
 }

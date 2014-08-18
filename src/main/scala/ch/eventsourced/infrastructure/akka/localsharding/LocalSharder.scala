@@ -1,11 +1,11 @@
 package ch.eventsourced.infrastructure.akka.localsharding
 
-import akka.actor.SupervisorStrategy.Escalate
-import akka.actor._
-import akka.persistence.{PersistentActor, RecoveryCompleted}
-import ch.eventsourced.infrastructure.akka.{CompositeName, ShardedActor}
 import scala.concurrent.duration._
+import akka.actor._
+import ch.eventsourced.infrastructure.akka.ShardedActor
 
+/** Sharder that only uses a single actor as the entry point.
+  * Only use in very small project or for tests. */
 class LocalSharder(
   passivateAfter: Duration = 5.minutes,
   passivationWaitTime: Duration = 5.seconds,
@@ -15,24 +15,42 @@ class LocalSharder(
 
   object Shutdown
 
-  //TODO keep track of non-nicely passivated actors.
-
   private class LocalSharder[Id](sharded: ShardedActor[Id]) extends Actor with ActorLogging {
     val passivationManager = new PassivationManager(sharded, passivateAfter = passivateAfter, passivationWaitTime = passivationWaitTime, stopWaitTime = stopWaitTime)
+    val cleannessTracker = new CleannessTracker[Id](sharded.name)
     val elementProps = passivationManager.props(context.self)
     override val supervisorStrategy = OneForOneStrategy(maxNrOfRetries = -1)(super.supervisorStrategy.decider)
+    import cleannessTracker.{MarkClean, MarkUnclean, NeedsCleaning}
+    import passivationManager.{RequestCleanStop, Passivated, PassivateIfPossible}
 
+    val tracker = context actorOf cleannessTracker.props
     var children = Map.empty[Id, ActorRef]
+
 
     def receive = {
       case Shutdown =>
-        //TODO nicer shutdown
         context stop self
+
+      case RequestCleanStop(from, ack) if children.contains(from) =>
+        children -= from
+        sender() ! ack
+
+      case Passivated(id) =>
+        if (!children.contains(id)) {
+          tracker ! MarkClean(id)
+        } else {
+          //the child was already restarted because of a new message, so it's not clean
+        }
+
+      case NeedsCleaning(id) if !children.contains(id) =>
+        // Start possibly dirty child and try to stop it cleanly
+        startChild(id) ! PassivateIfPossible
 
       case msg =>
         sharded.messageSelector.lift(msg).map { id =>
           log.debug(s"forwarding $msg to $id")
           children.getOrElse(id, startChild(id)) forward msg
+          tracker ! MarkUnclean(id)
         }.getOrElse(log.info(s"discarding $msg"))
     }
 
