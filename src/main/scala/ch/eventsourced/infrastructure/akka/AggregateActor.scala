@@ -124,8 +124,8 @@ class AggregateActor[I, C, E](contextName: String,
           log.warning(s"Ignoring out-of-order delivery ($seq does not follow $deliveryConfirmedUpTo).")
         }
 
-      case s: SubscribeToAggregate => subscriptionManager ! s
-      case s: UnsubscribeFromAggregate => subscriptionManager ! s
+      case s: SubscribeToAggregate => subscriptionManager forward s
+      case s: UnsubscribeFromAggregate => subscriptionManager forward s
 
       case RequestPassivation(yes, no) =>
         if (deliveryConfirmedUpTo == eventSeq - 1)
