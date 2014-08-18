@@ -57,11 +57,12 @@ class ContextActor(val definition: BoundedContextBackendType, pubSub: ActorRef, 
   //TODO read models
 
   def receive = {
-    case Shutdown =>
+    case Shutdown(ack) =>
       commandDistributor ! PoisonPill
       aggregateMgrs.map(_._2).foreach(_ ! LocalSharder.Shutdown)
       processMgrs.map(_._2).foreach(_ ! LocalSharder.Shutdown)
       processMgrs.map(_._3).foreach(_ ! PoisonPill)
+      sender() ! ack
       context stop self
     case msg: AggregateActor.Command => commandDistributor forward msg
   }
@@ -71,7 +72,7 @@ object ContextActor {
   def props(definition: BoundedContextBackendType, pubSub: ActorRef, config: Config) =
     Props(new ContextActor(definition, pubSub, config))
 
-  case object Shutdown
+  case class Shutdown(ack: Any)
 
   trait Config {
     def topicFor(contextName: String, aggregate: AggregateType) = {

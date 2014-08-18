@@ -33,7 +33,7 @@ class AkkaInfrastructure(system: ActorSystem) extends Infrastructure {
 
     def shutdown()(implicit t: FiniteDuration) = {
       implicit def timeout = Timeout(t)
-      (actor ? Shutdown).map(_ => ())
+      (actor ? Shutdown("ok")).map(_ => ())
     }
   }
 }
