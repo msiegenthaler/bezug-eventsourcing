@@ -1,5 +1,6 @@
 package ch.eventsourced.infrastructure.akka.localsharding
 
+import java.net.URLDecoder
 import scala.concurrent.duration._
 import akka.actor._
 import akka.actor.SupervisorStrategy.Escalate
@@ -24,7 +25,7 @@ class PassivationManager[Id](sharded: ShardedActor[Id], passivateAfter: Duration
   private class PassivationActor(publicRef: ActorRef) extends Actor with ActorLogging {
     import sharded._
 
-    val id = parseId(context.self.path.name).
+    val id = parseId(URLDecoder.decode(context.self.path.name, "UTF-8")).
       getOrElse(throw new IllegalStateException(s"cannot parse id  from ${context.self.path.name}"))
     def name = sharded.name / serializeId(id)
 

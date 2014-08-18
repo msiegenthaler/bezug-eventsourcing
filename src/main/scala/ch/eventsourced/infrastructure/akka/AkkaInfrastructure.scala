@@ -14,8 +14,8 @@ import ContextActor._
 /** BoundedContext infrastructure using clustered akka actors to execute the commands and react to the events. */
 class AkkaInfrastructure(system: ActorSystem) extends Infrastructure {
   def startContext(definition: BoundedContextBackendType, pubSub: ActorRef): BoundedContextBackend[definition.Command, definition.Event, definition.Error] = {
-    val name = URLEncoder.encode("context-" + definition.name, "UTF-8")
-    val actor = system.actorOf(ContextActor.props(definition, pubSub, DefaultConfig), name)
+    val name = CompositeName("context") / definition.name
+    val actor = system.actorOf(ContextActor.props(definition, pubSub, DefaultConfig), name.urlEncoded)
     new AkkaBoundedContext[definition.Command, definition.Event, definition.Error](actor)
   }
 

@@ -22,8 +22,8 @@ class ContextActor(val definition: BoundedContextBackendType, pubSub: ActorRef, 
     val manager = new ProcessManagerActor[pmt.Id, pmt.Command, pmt.Error](definition.name, pmt,
       commandDistributor)
     val name = CompositeName("process-manager") / manager.name
-    val actor = context.actorOf(sharder.props(manager), (name / "sharder").serialize)
-    val initiator = context.actorOf(manager.initiator.props(actor), (name / "initiator").serialize)
+    val actor = context.actorOf(sharder.props(manager), (name / "sharder").urlEncoded)
+    val initiator = context.actorOf(manager.initiator.props(actor), (name / "initiator").urlEncoded)
     (manager, actor, initiator)
   }
 
@@ -44,13 +44,14 @@ class ContextActor(val definition: BoundedContextBackendType, pubSub: ActorRef, 
 
     val manager = new AggregateActor(definition.name, aggregateType, subscriptions)
     val name = CompositeName("aggregate") / manager.name / "sharder"
-    val actor = context.actorOf(sharder.props(manager), name.serialize)
+    val actor = context.actorOf(sharder.props(manager), name.urlEncoded)
     (manager, actor)
   }
 
   val commandDistributor: ActorRef = {
     //TODO the unknown error.. from the definition..
-    val props = AggregateCommandDistributor.props[definition.Command, definition.Error](aggregateMgrs.toMap, definition.unknownCommand)
+    val props = AggregateCommandDistributor.props[definition.Command, definition.Error](aggregateMgrs.toMap, definition
+      .unknownCommand)
     context.actorOf(props, "command-distributor")
   }
 

@@ -11,6 +11,7 @@ sealed trait CompositeName {
   def parent: CompositeName
   def serialize: String =
     CompositeName.separator + serializedParts.mkString(CompositeName.separator)
+  def urlEncoded: String = serializedParts.map(_.replaceAll("\\+", "%2B")).mkString("+")
   def serializedParts: Seq[String]
   override def toString = serialize
 }

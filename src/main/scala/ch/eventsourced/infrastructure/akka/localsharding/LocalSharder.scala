@@ -1,5 +1,6 @@
 package ch.eventsourced.infrastructure.akka.localsharding
 
+import java.net.URLEncoder
 import scala.concurrent.duration._
 import akka.actor._
 import ch.eventsourced.infrastructure.akka.ShardedActor
@@ -57,7 +58,7 @@ class LocalSharder(
     def startChild(id: Id) = {
       log.info(s"activating $id")
       val name = sharded.name / sharded.serializeId(id)
-      val child = context.actorOf(elementProps, sharded.serializeId(id))
+      val child = context.actorOf(elementProps, URLEncoder.encode(sharded.serializeId(id), "UTF-8"))
       children += id -> child
       child
     }

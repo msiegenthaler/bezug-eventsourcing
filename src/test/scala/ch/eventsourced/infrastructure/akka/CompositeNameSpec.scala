@@ -73,5 +73,10 @@ class CompositeNameSpec extends WordSpecLike with Matchers {
       val conc = id1 / CompositeName.root
       assert(conc === id1)
     }
+
+    "have urlEncoded to allow for url-safe to string (i.e. for akka actor names)" in {
+      assert(id1.urlEncoded === "aggregate+123")
+      assert(id2.urlEncoded === "and%2For+hans%2Bpeter")
+    }
   }
 }
