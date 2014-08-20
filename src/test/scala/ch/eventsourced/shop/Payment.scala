@@ -1,4 +1,4 @@
-package ch.eventsourced.orderpayment
+package ch.eventsourced.shop
 
 import ch.eventsourced.api.AggregateType
 import ch.eventsourced.support.TypedGuid
@@ -6,12 +6,12 @@ import ch.eventsourced.support.TypedGuid
 object Payment extends AggregateType with TypedGuid {
   def name = "Payment"
 
-  sealed trait Event
+  sealed trait Event extends OrderPayment.Event
   case class PaymentRequested(amount: Money, reference: String) extends Event
   case object PaymentConfirmed extends Event
   case class PaymentFailed(reason: String) extends Event
 
-  sealed trait Command {
+  sealed trait Command extends OrderPayment.Command {
     def payment: Id
   }
   case class RequestPayment(amount: Money, reference: String, payment: Id = generateId) extends Command
@@ -19,7 +19,7 @@ object Payment extends AggregateType with TypedGuid {
   case class DenyPayment(payment: Id, reason: String) extends Command
   def aggregateIdForCommand(command: Command) = Some(command.payment)
 
-  sealed trait Error
+  sealed trait Error extends OrderPayment.Error
   case object NotRequested extends Error
   case object CannotRequestAgain extends Error
   case object WrongAmount extends Error

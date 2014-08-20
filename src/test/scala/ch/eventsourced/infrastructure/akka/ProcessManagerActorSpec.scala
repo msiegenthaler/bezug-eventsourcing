@@ -4,10 +4,10 @@ import akka.actor.{Actor, Props, PoisonPill, ActorRef}
 import akka.testkit.TestProbe
 import ch.eventsourced.api.AggregateKey
 import ch.eventsourced.infrastructure.akka.AggregateActor._
-import ch.eventsourced.orderpayment.{OrderProcess, Order, Payment}
+import ch.eventsourced.shop.{OrderProcess, Order, Payment}
 import Payment.PaymentConfirmed
 
-class ProcessManagerInstanceSpec extends AbstractSpec {
+class ProcessManagerActorSpec extends AbstractSpec {
 
   def startPmi(orderId: Order.Id, cmdDist: ActorRef) = {
     val orderPmi = new ProcessManagerActor("test", OrderProcess, cmdDist)
@@ -48,7 +48,7 @@ class ProcessManagerInstanceSpec extends AbstractSpec {
         case UnsubscribeFromAggregate(`sid`, `from`, ack) => ack
       }
     }
-    def expectCommand[A](pf: PartialFunction[OrderProcess.Command, A]) = {
+    def expectCommand[A](pf: PartialFunction[Any, A]) = {
       t.expectMsgPF(hint = s"command") {
         case Execute(cmd, ok, fail) if pf.isDefinedAt(cmd) => (ok, fail, pf(cmd))
       }

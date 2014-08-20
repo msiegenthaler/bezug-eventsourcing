@@ -1,4 +1,4 @@
-package ch.eventsourced.orderpayment
+package ch.eventsourced.shop
 
 import ch.eventsourced.api.ProcessManager.{Subscribe, Unsubscribe}
 import ch.eventsourced.api.ProcessManagerType
@@ -7,7 +7,8 @@ import ch.eventsourced.support.DerivedId
 object OrderProcess extends ProcessManagerType with DerivedId[Order.Id] {
   def name = "OrderProcess"
 
-  type Command = Any
+  type Command = OrderPayment.Command
+  type Error = OrderPayment.Error
 
   def triggeredBy = Set(Order)
   def initiate = {

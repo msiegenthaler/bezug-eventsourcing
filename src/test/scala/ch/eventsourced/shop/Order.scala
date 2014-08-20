@@ -1,4 +1,4 @@
-package ch.eventsourced.orderpayment
+package ch.eventsourced.shop
 
 import ch.eventsourced.api.AggregateType
 import ch.eventsourced.support.TypedGuid
@@ -7,13 +7,13 @@ import ch.eventsourced.support.TypedGuid
 object Order extends AggregateType with TypedGuid {
   def name = "Order"
 
-  sealed trait Event
+  sealed trait Event extends OrderPayment.Event
   case class ItemAdded(item: String, amount: Money) extends Event
   case class OrderPlaced(items: List[(String, Money)], total: Money, billingRef: String) extends Event
   case object OrderCompleted extends Event
   case object OrderCanceled extends Event
 
-  sealed trait Command {
+  sealed trait Command extends OrderPayment.Command {
     def order: Id
   }
   case class StartOrder(order: Id = generateId) extends Command
@@ -23,7 +23,7 @@ object Order extends AggregateType with TypedGuid {
   case class CompleteOrder(order: Id) extends Command
   def aggregateIdForCommand(command: Command) = Some(command.order)
 
-  sealed trait Error
+  sealed trait Error extends OrderPayment.Error
   case object OrderIsOpen extends Error
   case object OrderAlreadyComplete extends Error
   case object OrderAlreadyPlaced extends Error
@@ -41,7 +41,7 @@ object Order extends AggregateType with TypedGuid {
       case _ => OrderIsOpen
     }
     def applyEvent = {
-      case ItemAdded(item, amount) => copy(items = items :+ (item , amount))
+      case ItemAdded(item, amount) => copy(items = items :+(item, amount))
       case OrderPlaced(items, amount, ref) => PlacedOrder(id, items.map(_._1), amount, ref)
       case OrderCanceled => FinishedOrder(id, OrderWasCancelled)
     }
