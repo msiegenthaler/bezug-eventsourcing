@@ -1,7 +1,6 @@
-package ch.eventsourced.infrastructure.akka
+package ch.eventsourced.orderpayment
 
-
-import ch.eventsourced.api.ProcessManager.{Unsubscribe, Subscribe}
+import ch.eventsourced.api.ProcessManager.{Subscribe, Unsubscribe}
 import ch.eventsourced.api.ProcessManagerType
 import ch.eventsourced.support.DerivedId
 

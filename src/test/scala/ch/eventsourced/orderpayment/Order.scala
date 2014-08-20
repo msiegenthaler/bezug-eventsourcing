@@ -1,4 +1,4 @@
-package ch.eventsourced.infrastructure.akka
+package ch.eventsourced.orderpayment
 
 import ch.eventsourced.api.AggregateType
 import ch.eventsourced.support.TypedGuid

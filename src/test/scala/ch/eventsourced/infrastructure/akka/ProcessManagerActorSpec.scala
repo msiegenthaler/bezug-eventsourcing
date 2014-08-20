@@ -4,7 +4,8 @@ import akka.actor.{Actor, Props, PoisonPill, ActorRef}
 import akka.testkit.TestProbe
 import ch.eventsourced.api.AggregateKey
 import ch.eventsourced.infrastructure.akka.AggregateActor._
-import ch.eventsourced.infrastructure.akka.Payment.PaymentConfirmed
+import ch.eventsourced.orderpayment.{OrderProcess, Order, Payment}
+import Payment.PaymentConfirmed
 
 class ProcessManagerInstanceSpec extends AbstractSpec {
 
