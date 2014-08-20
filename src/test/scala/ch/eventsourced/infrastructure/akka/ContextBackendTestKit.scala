@@ -67,7 +67,7 @@ abstract class ContextBackendTestKit(_system: ActorSystem) extends TestKit(_syst
     }
     def printAllEvents() = allEvents().foreach(e => println(s"- $e"))
 
-    def reset = {
+    def reset() = {
       probe.receiveWhile(max = 500.millis)(publishMessage)
       buffer = Seq.empty
     }
@@ -113,5 +113,15 @@ abstract class ContextBackendTestKit(_system: ActorSystem) extends TestKit(_syst
   def execute(cmd: Context#Command)(implicit timeout: FiniteDuration): Unit = {
     val res = await(backend.execute(cmd))
     assert(res.isSuccess)
+  }
+
+  def commandFails(cmd: Context#Command)(implicit timeout: FiniteDuration): Context#Error = {
+    val res = await(backend.execute(cmd))
+    assert(res.isFailure)
+    res.fold(f => f, _ => ???)
+  }
+  def expectCommandFailure(cmd: Context#Command, expect: Context#Error)(implicit timeout: FiniteDuration): Unit = {
+    val err = commandFails(cmd)
+    assert(err === expect)
   }
 }
