@@ -35,6 +35,7 @@ object Order extends AggregateType with TypedGuid {
   sealed trait Order extends RootBase
   case class OpenOrder(id: Id, items: List[(String, Money)]) extends Order {
     def execute(c: Command) = c match {
+      case StartOrder(`id`) => Nil
       case AddItem(`id`, item, amount) => ItemAdded(item, amount)
       case PlaceOrder(`id`) => OrderPlaced(items, items.map(_._2).sum, s"Your order of ${items.size} items")
       case CancelOrder(`id`) => OrderCanceled
