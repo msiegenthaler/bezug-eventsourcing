@@ -29,9 +29,16 @@ class AggregateActorSpec extends AbstractSpec {
       a ! Execute(cmd, "ok", (e: counter.Error) => s"fail: $e")
       expectMsg(5.seconds, "ok")
     }
+    def executeFailure(cmd: counter.Command) = {
+      a ! Execute(cmd, "ok", (e: counter.Error) => CmdError(e))
+      expectMsgPF(hint = "error") {
+        case CmdError(e) => e
+      }
+    }
     def kill(id: counter.Id) = {
       a ! Execute(Kill(id), (), (_: counter.Error) => ())
     }
+    private case class CmdError(e: counter.Error)
   }
 
   def expectNoEvent() = eventHandler.expectNoMsg()
@@ -66,6 +73,15 @@ class AggregateActorSpec extends AbstractSpec {
       aggregate.executeSuccess(Increment(init.counter))
       expectEvent(counter.Event.Data(init.counter, 1, Incremented(2)))
       expectNoEvents()
+    }
+
+    "handle commands that result in errors" in {
+      val init = Initialize()
+      val aggregate = startAggregate(init.counter)
+      aggregate.executeSuccess(init)
+
+      val error = aggregate.executeFailure(BadCommand(init.counter))
+      assert(error == Unhandled)
     }
 
     "preserve state if killed" in {

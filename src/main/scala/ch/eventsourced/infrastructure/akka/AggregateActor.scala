@@ -95,7 +95,7 @@ class AggregateActor[I, C, E](contextName: String,
     log.debug(s"Starting aggregator actor for ${aggregateType.name} with id $persistenceId")
 
     def receiveCommand = {
-      case Execute(Command(`id`, cmd), success, fail) =>
+      case Execute(Command(`id`, cmd), success, fail: (Error => Any)) =>
         val res = state.execute(cmd)
         log.debug(s"executing $cmd\n  on $state\n  ==> $res")
         res match {
@@ -114,7 +114,7 @@ class AggregateActor[I, C, E](contextName: String,
                 sender() ! success
             }
           case Failure(Error(error)) =>
-            sender() ! fail(error.asInstanceOf)
+            sender() ! fail(error)
         }
 
       case EventAck(seq) if (seq > deliveryConfirmedUpTo) =>

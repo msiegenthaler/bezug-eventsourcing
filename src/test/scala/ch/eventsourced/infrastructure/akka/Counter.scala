@@ -15,6 +15,7 @@ object counter extends AggregateType with TypedGuid {
   case class Increment(counter: Id) extends Command
   case class Set(counter: Id, value: Int) extends Command
   case class Kill(counter: Id) extends Command
+  case class BadCommand(counter: Id) extends Command
 
   sealed trait Event
   case class Incremented(newValue: Int) extends Event
