@@ -1,49 +1,20 @@
 package bezug
 
+import scala.concurrent.duration._
+import akka.testkit.ImplicitSender
+import org.scalatest.Matchers
+import ch.eventsourced.infrastructure.akka.ContextBackendTestKit
+import pubsub.Producer.Publish
 import bezug.Monat.April
 import bezug.debitor.{BelegartUrbeleg, Buchung}
 import bezug.debitor.Buchung.Urbeleg
-import bezug.fakturierung.Faktura.{FakturaPosition, FakturaBeauftragen}
-import ch.eventsourced.api.BoundedContextBackend
-import pubsub.Producer.Publish
-import scala.concurrent.{Await, Future}
-import scala.concurrent.duration._
-import akka.actor.ActorSystem
-import akka.testkit.{TestProbe, ImplicitSender, TestKit}
-import org.scalatest.{BeforeAndAfterEach, BeforeAndAfterAll, Matchers, WordSpecLike}
-import com.typesafe.config.ConfigFactory
-import scalaz._
-import Scalaz._
-import ch.eventsourced.infrastructure.akka.AkkaInfrastructure
 import bezug.fakturierung.Faktura
+import bezug.fakturierung.Faktura.FakturaPosition
 
-class BezugSpec(_system: ActorSystem) extends TestKit(_system) with ImplicitSender with WordSpecLike with Matchers with BeforeAndAfterAll with BeforeAndAfterEach {
-  def this() = this {
-    val config = ConfigFactory.parseString(
-      """
-        |akka.loglevel = "WARNING"
-        |akka.persistence.journal.plugin = "akka.persistence.journal.inmem"
-        |akka.persistence.snapshot-store.plugin = "in-memory-snapshot-store"
-        |akka.log-dead-letters = "false"
-        |akka.log-dead-letters-during-shutdown = "false"
-      """.stripMargin)
-    ActorSystem(getClass.getName.filter(_.isLetterOrDigit), config)
-  }
+class BezugSpec extends ContextBackendTestKit with ImplicitSender with Matchers {
+  val context = BezugContext
 
-  val pubSub = TestProbe()
-
-  implicit val timeout = 5.second
-  val infrastructure = new AkkaInfrastructure(system)
-  def await[A](f: Future[A]) = Await.result(f, 5.seconds)
-
-  var backend: BoundedContextBackend[BezugContext.Command, BezugContext.Event, BezugContext.Error] = null
-  override def beforeEach = {
-    backend = infrastructure.startContext(BezugContext, pubSub.ref)
-  }
-  override def afterEach = {
-    await(backend.shutdown())
-    Thread.sleep(200)
-  }
+  implicit def timeout = 5.second
 
   "Bezug" must {
     "be startable" in {
