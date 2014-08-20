@@ -4,21 +4,20 @@ import scala.concurrent.duration._
 import akka.testkit.ImplicitSender
 import org.scalatest.Matchers
 import ch.eventsourced.infrastructure.akka.ContextBackendTestKit
-import pubsub.Producer.Publish
 import bezug.Monat.April
-import bezug.debitor.{BelegartUrbeleg, Buchung}
+import bezug.debitor.{Debitor, BelegartUrbeleg, Buchung}
 import bezug.debitor.Buchung.Urbeleg
-import bezug.fakturierung.Faktura
+import bezug.fakturierung.{Schuldner, Faktura}
 import bezug.fakturierung.Faktura.FakturaPosition
 
 class BezugSpec extends ContextBackendTestKit with ImplicitSender with Matchers {
   val context = BezugContext
 
-  implicit def timeout = 5.second
+  implicit def timeout = 10.seconds
 
   "Bezug" must {
     "be startable" in {
-      pubSub.expectNoMsg(500.millis)
+      pubSub.expectNoEvents
     }
 
     "process a FakturaBeauftragen" in {
@@ -32,19 +31,19 @@ class BezugSpec extends ContextBackendTestKit with ImplicitSender with Matchers 
       val positionen = FakturaPosition(institution1, kat1, Betrag(100)) ::
         FakturaPosition(institution2, kat1, Betrag(6)) ::
         Nil
-      val cmd = Faktura.FakturaBeauftragen(person1, Register.NP, Jahr(2014), valuta, grundlagen, positionen)
 
-      assert(await(backend.execute(cmd)).isSuccess)
+      execute(Faktura.FakturaBeauftragen(person1, Register.NP, Jahr(2014), valuta, grundlagen, positionen))
 
-      pubSub.fishForMessage(hint = "Gebucht") {
-        case Publish(_, _, Buchung.Event(Buchung.Gebucht(_, `valuta`, Urbeleg(BelegartUrbeleg.Faktura), Nil)), ack) =>
-          pubSub reply ack
-          true
-        case Publish(_, _, event, ack) =>
-          //println(s"- $event")
-          pubSub reply ack
-          false
-      }
+
+      val (k, ps) = pubSub.expectEvent() { case Faktura.FakturaVervollständigt(kopf, positionen) => (kopf, positionen)}
+      assert(k === Faktura.FakturaKopf(person1, Register.NP, Jahr(2014), valuta, grundlagen))
+      assert(ps === positionen)
+
+      val (inkassoFall, fakturaFall) = pubSub.expectEvent() { case Debitor.InkassoFallEröffnet(ikf, ff) => (ikf, ff)}
+
+      pubSub.expectEvent() { case Schuldner.InkassoFallZugeordnet(`fakturaFall`, `inkassoFall`) => ()}
+
+      pubSub.expectEvent() { case Buchung.Gebucht(_, `valuta`, Urbeleg(BelegartUrbeleg.Faktura), Nil) => ()}
     }
   }
 }
