@@ -8,23 +8,15 @@ package object debitor {
     case object Faktura extends BelegartUrbeleg
   }
 
-  sealed trait SollHaben
-  case class Soll(betrag: Betrag) extends SollHaben
-  case class Haben(betrag: Betrag) extends SollHaben
-
-  case class Verwendung(kategorie: KatId, institution: Institution)
-
-
   sealed trait Konto
-  sealed trait DetailKonto {
-    def konto: Konto
+  case class Debitorkonto(debitor: Debitor.Id) extends Konto
+  object Debitorkonto {
+    def is(konto: Konto) = konto match {
+      case _: Debitorkonto => true
+      case _ => false
+    }
   }
-  case class Debitorenkonto(debitor: Debitor.Id) extends Konto
-  //TODO debitor hier ist irgendwie doof (Inkonsistenzen)
-  case class Inkassofallkonto(debitor: Debitor.Id, inkassoFall: InkassoFall.Id) extends DetailKonto {
-    def konto = Debitorenkonto(debitor)
-  }
-  case class Verwendungskonto(verwendung: Verwendung) extends DetailKonto with Konto {
-    def konto = this
-  }
+  case class FinanzinstitutKonto(name: String) extends Konto
+  case object Ertragkonto extends Konto
+  case object Aufwandkonto extends Konto
 }

@@ -13,18 +13,18 @@ object Faktura extends AggregateType with TypedGuid {
     def faktura: Id
   }
   case class FakturaBeauftragen(schuldner: Person, register: Register, steuerjahr: Jahr,
-    valuta: Datum, grundlagen: Grundlagen, positionen: Traversable[FakturaPosition],
+    valuta: Datum, grundlagen: Grundlagen, positionen: Traversable[Position],
     faktura: Id = generateId)
     extends Command
 
   sealed trait Event extends Bezug.Event
-  case class FakturaKopfErstellt(kopf: FakturaKopf) extends Event
-  case class FakturaPositionHinzugefügt(position: FakturaPosition) extends Event
-  case class FakturaVervollständigt(kopf: FakturaKopf, positionen: Seq[FakturaPosition]) extends Event
+  case class FakturaKopfErstellt(kopf: Kopf) extends Event
+  case class FakturaPositionHinzugefügt(position: Position) extends Event
+  case class FakturaVervollständigt(kopf: Kopf, positionen: Seq[Position]) extends Event
 
-  case class FakturaKopf(person: Person, register: Register, steuerjahr: Jahr,
+  case class Kopf(person: Person, register: Register, steuerjahr: Jahr,
     valuta: Datum, grundlagen: Grundlagen)
-  case class FakturaPosition(institution: Institution, kategorie: KatId, betrag: Betrag)
+  case class Position(institution: Institution, betragskategorie: KatId, betrag: Betrag)
 
   sealed trait Error
   protected def types = typeInfo
@@ -34,8 +34,8 @@ object Faktura extends AggregateType with TypedGuid {
   case class EmptyFaktura(id: Id) extends FakturaLike {
     def execute(c: Command) = c match {
       case f: FakturaBeauftragen =>
-        val kopf = FakturaKopf(f.schuldner, f.register, f.steuerjahr, f.valuta, f.grundlagen)
-        val positionen = f.positionen.map { p => FakturaPosition(p.institution, p.kategorie, p.betrag)}.toSeq
+        val kopf = Kopf(f.schuldner, f.register, f.steuerjahr, f.valuta, f.grundlagen)
+        val positionen = f.positionen.map { p => Position(p.institution, p.betragskategorie, p.betrag)}.toSeq
         FakturaKopfErstellt(kopf) +:
           positionen.map(FakturaPositionHinzugefügt(_)) :+
           FakturaVervollständigt(kopf, positionen)
@@ -45,7 +45,7 @@ object Faktura extends AggregateType with TypedGuid {
     }
   }
 
-  case class Faktura(id: Id, kopf: FakturaKopf, positionen: Seq[FakturaPosition]) extends FakturaLike {
+  case class Faktura(id: Id, kopf: Kopf, positionen: Seq[Position]) extends FakturaLike {
     def execute(c: Command) = ???
     def applyEvent = {
       case FakturaPositionHinzugefügt(pos) => copy(positionen = positionen :+ pos)

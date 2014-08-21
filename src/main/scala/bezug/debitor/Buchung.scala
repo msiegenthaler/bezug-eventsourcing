@@ -8,32 +8,24 @@ object Buchung extends AggregateType with TypedGuid {
   def name = "Buchung"
 
   case class Urbeleg(art: BelegartUrbeleg)
-
-  case class Position(soll: Konto, haben: Konto, betrag: Betrag)
-
-  case class DetailPosition(soll: DetailKonto, haben: DetailKonto, betrag: Betrag)
-  object DetailPosition {
-    def summarize(pos: Traversable[DetailPosition]) = {
-      pos.map { dp => Position(dp.soll.konto, dp.haben.konto, dp.betrag)}.
-        groupBy(p => (p.soll, p.haben)).
-        map {
-        case ((soll, haben), positionen) =>
-          Position(soll, haben, positionen.map(_.betrag).reduce(_ + _))
-      }
-    }
-  }
-
+  case class Position(inkassofall: InkassoFall.Id, betragskategorie: KatId, institution: Institution, betrag: Betrag)
 
   sealed trait Command extends Bezug.Command {
     def buchung: Id
   }
-  case class Buchen(valuta: Datum, urbeleg: Urbeleg, positionen: Seq[DetailPosition], buchung: Id = generateId)
-    extends Command
+  case class Buchen(valuta: Datum, urbeleg: Urbeleg,
+    soll: Konto, haben: Konto,
+    positionen: Seq[Position],
+    buchung: Id = generateId)
+    extends Command {
+    require(Debitorkonto.is(soll) || Debitorkonto.is(haben), "Soll oder Haben muss Debitorkonto sein")
+    require(positionen.nonEmpty, "Mind. eine Position")
+  }
   def aggregateIdForCommand(command: Command) = Some(command.buchung)
 
 
   sealed trait Event extends Bezug.Event
-  case class Gebucht(zeitpunkt: Zeitpunkt, valuta: Datum, urbeleg: Urbeleg, positionen: Seq[DetailPosition])
+  case class Gebucht(zeitpunkt: Zeitpunkt, valuta: Datum, urbeleg: Urbeleg, soll: Konto, haben: Konto, positionen: Seq[Position])
     extends Event
   sealed trait Error
 
@@ -42,16 +34,14 @@ object Buchung extends AggregateType with TypedGuid {
   def seed(id: Buchung.Id) = EmptyBuchung(id)
   case class EmptyBuchung(id: Id) extends Root {
     def execute(c: Command) = c match {
-      case Buchen(valuta, urbeleg, positionen, _) =>
-        Gebucht(Zeitpunkt.now, valuta, urbeleg, positionen)
+      case Buchen(valuta, urbeleg, soll, haben, positionen, _) =>
+        Gebucht(Zeitpunkt.now, valuta, urbeleg, soll, haben, positionen)
     }
     def applyEvent = {
       case e: Gebucht => Kopf(id, e.zeitpunkt, e.valuta, e.urbeleg, e.positionen)
     }
   }
-  case class Kopf(id: Id, zeitpunkt: Zeitpunkt, valuta: Datum, urbeleg: Urbeleg, detailPositionen: Seq[DetailPosition]) extends Root {
-    def positionen = DetailPosition.summarize(detailPositionen)
-
+  case class Kopf(id: Id, zeitpunkt: Zeitpunkt, valuta: Datum, urbeleg: Urbeleg, detailPositionen: Seq[Position]) extends Root {
     def execute(c: Command) = ???
     def applyEvent = ???
   }
