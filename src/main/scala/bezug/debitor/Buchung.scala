@@ -27,7 +27,9 @@ object Buchung extends AggregateType with TypedGuid {
   sealed trait Event extends Bezug.Event
   case class Gebucht(zeitpunkt: Zeitpunkt, valuta: Datum, urbeleg: Urbeleg, soll: Konto, haben: Konto, positionen: Seq[Position])
     extends Event
-  sealed trait Error
+
+  sealed trait Error extends Bezug.Error
+  case object IstAbgeschlossen extends Error
 
 
   sealed trait Root extends RootBase
@@ -38,12 +40,13 @@ object Buchung extends AggregateType with TypedGuid {
         Gebucht(Zeitpunkt.now, valuta, urbeleg, soll, haben, positionen)
     }
     def applyEvent = {
-      case e: Gebucht => Kopf(id, e.zeitpunkt, e.valuta, e.urbeleg, e.positionen)
+      case e: Gebucht => Kopf(id, e.zeitpunkt, e.valuta, e.urbeleg, e.soll, e.haben, e.positionen)
     }
   }
-  case class Kopf(id: Id, zeitpunkt: Zeitpunkt, valuta: Datum, urbeleg: Urbeleg, detailPositionen: Seq[Position]) extends Root {
-    def execute(c: Command) = ???
-    def applyEvent = ???
+  case class Kopf(id: Id, zeitpunkt: Zeitpunkt, valuta: Datum, urbeleg: Urbeleg,
+    soll: Konto, haben: Konto, positionen: Seq[Position]) extends Root {
+    def execute(c: Command) = IstAbgeschlossen
+    def applyEvent = PartialFunction.empty
   }
 
   protected def types = typeInfo

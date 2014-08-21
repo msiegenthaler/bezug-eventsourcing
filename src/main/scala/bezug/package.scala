@@ -2,6 +2,7 @@ import ch.eventsourced.api.StringSerialize
 package object bezug {
   case class Betrag(value: BigDecimal) {
     def +(other: Betrag) = Betrag(value + other.value)
+    def *(faktor: BigDecimal) = Betrag(value * faktor)
   }
 
   case class KatId(name: String)

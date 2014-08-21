@@ -46,10 +46,12 @@ trait ProcessManagerType {
   sealed trait Next
   case class Completed(commands: Seq[Command] = Seq.empty) extends Next {
     def +(cmd: Command) = copy(commands = commands :+ cmd)
+    def ++(cmd: Seq[Command]) = copy(commands = commands ++ cmd)
   }
   case class Continue(transition: Transition,
     commands: Seq[Command] = Seq.empty) extends Next {
     def +(cmd: Command) = copy(commands = commands :+ cmd)
+    def ++(cmd: Seq[Command]) = copy(commands = commands ++ cmd)
   }
 
 

@@ -19,7 +19,7 @@ object BezugContext extends BoundedContextBackendType {
 
   def processManagers = {
     ProcessManagers(FakturaErstellenProcess, fakturierung.InkassoFallEröffnenProcess) ++
-      ProcessManagers(debitor.InkassoFallEröffnenProcess)
+      ProcessManagers(debitor.InkassoFallEröffnenProcess, debitor.SaldoAktualisierenProcess)
   }
 
   def readModels = Set()
@@ -28,4 +28,5 @@ object BezugContext extends BoundedContextBackendType {
 object Bezug {
   trait Command
   trait Event
+  trait Error
 }
