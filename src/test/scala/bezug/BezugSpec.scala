@@ -6,7 +6,7 @@ import org.scalatest.Matchers
 import ch.eventsourced.infrastructure.akka.ContextBackendTestKit
 import bezug.Monat.April
 import bezug.debitor._
-import bezug.debitor.Buchung.Urbeleg
+import bezug.debitor.Buchung.{KontoOhneVerwendung, KontoMitVerwendung, Urbeleg}
 import bezug.fakturierung.{Schuldner, Faktura}
 import bezug.fakturierung.Faktura.Position
 
@@ -46,7 +46,7 @@ class BezugSpec extends ContextBackendTestKit with ImplicitSender with Matchers 
       pubSub.expectEvent() { case Schuldner.InkassoFallZugeordnet(`fakturaFall`, `inkassoFall`) => ()}
 
       pubSub.expectEvent() {
-        case Buchung.Gebucht(_, `valuta`, Urbeleg(BelegartUrbeleg.Faktura), Debitorkonto(deb), haben, positionen) =>
+        case Buchung.Gebucht(_, `valuta`, Urbeleg(BelegartUrbeleg.Faktura), KontoMitVerwendung(Debitorkonto(deb), positionen), KontoOhneVerwendung(haben)) =>
           assert(haben === Ertragkonto)
           assert(deb == debitor)
           assert(positionen.size === 2)

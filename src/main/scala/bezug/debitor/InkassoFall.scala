@@ -1,6 +1,7 @@
 package bezug
 package debitor
 
+import bezug.debitor.Buchung.{KontoMitVerwendung, Buchungskonto}
 import ch.eventsourced.api.AggregateType
 import ch.eventsourced.support.TypedGuid
 
@@ -11,7 +12,7 @@ object InkassoFall extends AggregateType with TypedGuid {
     def inkassoFall: Id
   }
   case class Eröffnen(debitor: Debitor.Id, register: Register, steuerjahr: Jahr, inkassoFall: Id = generateId) extends Command
-  case class BuchungRegistrieren(inkassoFall: Id, buchung: Buchung.Id, valuta: Datum, soll: Konto, haben: Konto, positionen: Seq[Buchung.Position]) extends Command
+  case class BuchungRegistrieren(inkassoFall: Id, buchung: Buchung.Id, valuta: Datum, soll: Buchungskonto, haben: Buchungskonto) extends Command
   def aggregateIdForCommand(command: Command) = Some(command.inkassoFall)
 
   sealed trait Event extends Bezug.Event
@@ -40,16 +41,12 @@ object InkassoFall extends AggregateType with TypedGuid {
   }
   case class InkassoFall(id: Id, debitor: Debitor.Id, buchungen: Seq[Buchung.Id], saldo: Betrag) extends Root {
     def execute(c: Command) = c match {
-      case BuchungRegistrieren(`id`, buchung, _, soll, haben, positionen) =>
-        val inSoll = soll == Debitorkonto(debitor)
-        val inHaben = haben == Debitorkonto(debitor)
-        val relevantePositionen = positionen.filter(_.inkassofall == id)
-        if ((!inSoll && !inHaben) || relevantePositionen.isEmpty) FalscheBuchung
-        else {
-          val faktor = (if (inSoll) 1 else 0) + (if (inHaben) -1 else 0)
-          val delta = relevantePositionen.map(_.betrag).reduce(_ + _) * faktor
-          SaldoAktualisiert(buchung, saldo + delta, saldo)
-        }
+      case BuchungRegistrieren(`id`, buchung, _, soll, haben) =>
+        if (soll.inkassofälle.contains(id) || haben.inkassofälle.contains(id)) {
+          val sollBetrag = soll.betragFür(id)
+          val habenBetrag = haben.betragFür(id)
+          SaldoAktualisiert(buchung, saldo + sollBetrag + habenBetrag, saldo)
+        } else FalscheBuchung
     }
     def applyEvent = {
       case SaldoAktualisiert(buchung, saldo, _) => copy(saldo = saldo, buchungen = buchungen :+ buchung)

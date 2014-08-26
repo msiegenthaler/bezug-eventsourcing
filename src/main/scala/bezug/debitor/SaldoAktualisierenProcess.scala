@@ -1,7 +1,7 @@
 package bezug.debitor
 
 import bezug.Bezug
-import bezug.debitor.Buchung.Gebucht
+import bezug.debitor.Buchung.{Buchungskonto, KontoMitVerwendung, Gebucht}
 import bezug.debitor.InkassoFall.BuchungRegistrieren
 import ch.eventsourced.api.ProcessManagerType
 import ch.eventsourced.support.DerivedId
@@ -22,8 +22,8 @@ object SaldoAktualisierenProcess extends ProcessManagerType with DerivedId[Buchu
   case class Manager(id: Id) extends BaseManager {
     def handle = {
       case Buchung.EventData(id, _, gebucht: Gebucht) =>
-        val cmds = gebucht.positionen.map(_.inkassofall).map { inkassofall =>
-          BuchungRegistrieren(inkassofall, id, gebucht.valuta, gebucht.soll, gebucht.haben, gebucht.positionen)
+        val cmds = (gebucht.soll.inkassofälle ++ gebucht.haben.inkassofälle).toSeq map { inkassofall =>
+          BuchungRegistrieren(inkassofall, id, gebucht.valuta, gebucht.soll, gebucht.haben)
         }
         Completed() ++ cmds
     }

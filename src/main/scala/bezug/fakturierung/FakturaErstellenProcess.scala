@@ -3,7 +3,7 @@ package fakturierung
 
 import bezug.debitor.Debitor.InkassoFallEröffnet
 import bezug.debitor._
-import bezug.debitor.Buchung.Urbeleg
+import bezug.debitor.Buchung.{KontoOhneVerwendung, KontoMitVerwendung, Urbeleg}
 import bezug.fakturierung.Faktura.{FakturaVervollständigt}
 import bezug.fakturierung.Schuldner.{InkassoFallZugeordnet, FakturaFall, FakturaFallErstellt}
 import ch.eventsourced.api.ProcessManager.{Unsubscribe, Subscribe}
@@ -71,10 +71,11 @@ object FakturaErstellenProcess extends ProcessManagerType with DerivedId[Faktura
   case class BuchungErstellen(id: Id, faktura: Faktura.Id, kopf: Faktura.Kopf, fakturaFall: FakturaFall.Id, positionen: Seq[Faktura.Position], inkassoFall: InkassoFall.Id) extends Manager {
     def handle = {
       case InkassoFall.Event(InkassoFall.Eröffnet(debitor, _, _)) =>
+        val pos = positionen.map(p => Buchung.Position(inkassoFall, p.betragskategorie, p.institution, p.betrag))
         Completed() + Buchung.Buchen(valuta = kopf.valuta,
           urbeleg = Urbeleg(BelegartUrbeleg.Faktura),
-          soll = Debitorkonto(debitor), haben = Ertragkonto,
-          positionen = positionen.map(p => Buchung.Position(inkassoFall, p.betragskategorie, p.institution, p.betrag)))
+          soll = KontoMitVerwendung(Debitorkonto(debitor), pos),
+          haben = KontoOhneVerwendung(Ertragkonto))
     }
     def applyTransition = PartialFunction.empty
   }
