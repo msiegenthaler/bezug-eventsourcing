@@ -58,7 +58,7 @@ class BezugSpec extends ContextBackendTestKit with ImplicitSender with Matchers 
       }
 
       pubSub.expectEvent("SaldoAktualisiert") {
-        case InkassoFall.SaldoAktualisiert(_, saldo, alt) =>
+        case InkassoFall.SaldoAktualisiert(_, _, saldo, alt) =>
           assert(saldo === Betrag(106))
           assert(alt === Betrag(0))
       }

@@ -23,7 +23,7 @@ object SaldoAktualisierenProcess extends ProcessManagerType with DerivedId[Buchu
     def handle = {
       case Buchung.EventData(id, _, gebucht: Gebucht) =>
         val cmds = (gebucht.soll.inkassofälle ++ gebucht.haben.inkassofälle).toSeq map { inkassofall =>
-          BuchungRegistrieren(inkassofall, id, gebucht.valuta, gebucht.soll, gebucht.haben)
+          BuchungRegistrieren(inkassofall, id, gebucht)
         }
         Completed() ++ cmds
     }

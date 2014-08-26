@@ -3,9 +3,17 @@ package bezug
 package object debitor {
   case class InkassoKey(person: Person, register: Register, steuerjahr: Jahr, laufnummer: Int)
 
-  sealed trait BelegartUrbeleg
+  sealed trait BelegartUrbeleg {
+    def isAbschreibung: Boolean
+    def isErlass: Boolean
+    def isSchuld: Boolean
+  }
   object BelegartUrbeleg {
-    case object Faktura extends BelegartUrbeleg
+    case object Faktura extends BelegartUrbeleg {
+      def isAbschreibung = false
+      def isErlass = false
+      def isSchuld = true
+    }
   }
 
   sealed trait Konto

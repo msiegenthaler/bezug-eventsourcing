@@ -42,12 +42,14 @@ object Buchung extends AggregateType with TypedGuid {
       case _ => ()
     }
   }
+  case class Stornieren(buchung: Id = generateId) extends Command
   def aggregateIdForCommand(command: Command) = Some(command.buchung)
 
 
   sealed trait Event extends Bezug.Event
   case class Gebucht(zeitpunkt: Zeitpunkt, valuta: Datum, urbeleg: Urbeleg, soll: Buchungskonto, haben: Buchungskonto)
     extends Event
+  case class Storniert(zeitpunkt: Zeitpunkt, mit: Buchung.Id) extends Event
 
   sealed trait Error extends Bezug.Error
   case object IstAbgeschlossen extends Error
@@ -61,13 +63,21 @@ object Buchung extends AggregateType with TypedGuid {
         Gebucht(Zeitpunkt.now, valuta, urbeleg, soll, haben)
     }
     def applyEvent = {
-      case e: Gebucht => Kopf(id, e.zeitpunkt, e.valuta, e.urbeleg, e.soll, e.haben)
+      case e: Gebucht => Kopf(id, e.zeitpunkt, e.valuta, e.urbeleg, e.soll, e.haben, None)
     }
   }
   case class Kopf(id: Id, zeitpunkt: Zeitpunkt, valuta: Datum, urbeleg: Urbeleg,
-    soll: Buchungskonto, haben: Buchungskonto) extends Root {
-    def execute(c: Command) = IstAbgeschlossen
-    def applyEvent = PartialFunction.empty
+    soll: Buchungskonto, haben: Buchungskonto, storniertMit: Option[Buchung.Id]) extends Root {
+    def execute(c: Command) = c match {
+      case _: Buchen =>
+        IstAbgeschlossen
+      case Stornieren(`id`) if storniertMit.isEmpty =>
+        Storniert(Zeitpunkt.now, generateId)
+      case _: Storniert => ()
+    }
+    def applyEvent = {
+      case Storniert(_, mit) => copy(storniertMit = Some(mit))
+    }
   }
 
   protected def types = typeInfo
