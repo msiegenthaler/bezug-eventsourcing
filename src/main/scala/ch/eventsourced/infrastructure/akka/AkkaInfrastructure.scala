@@ -27,7 +27,7 @@ class AkkaInfrastructure(system: ActorSystem) extends Infrastructure {
       val f = actor ? Execute(c, (), (e: Error) => e)
       f.map {
         case () => ().success
-        case error => error.asInstanceOf[Error].fail
+        case error => error.asInstanceOf[Error].failure
       }
     }
 

@@ -106,7 +106,7 @@ abstract class ContextBackendTestKit(_system: ActorSystem) extends TestKit(_syst
   }
 
   override def afterAll = {
-    system.shutdown()
+    system.terminate()
   }
 
 

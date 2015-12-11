@@ -25,7 +25,7 @@ trait AggregateType {
   protected trait RootBase extends AggregateRoot[Root, Id, Command, Event, Error] {
     // Helper methods for more convenience when writing execute() implementations
     protected implicit def eventToEvents[E](event: Validation[E, Event]): Validation[E, Seq[Event]] = event.map(Seq(_))
-    protected implicit def errorToValidation(error: Error): Validation[Error, Nothing] = error.fail
+    protected implicit def errorToValidation(error: Error): Validation[Error, Nothing] = error.failure
     protected implicit def eventToValidation(event: Event): Validation[Nothing, Seq[Event]] = Seq(event).success
     protected implicit def eventsToValidation(events: Seq[Event]): Validation[Nothing, Seq[Event]] = events.success
     protected implicit def unitToNoEvents(r: Unit): Validation[Nothing, Seq[Event]] = Seq.empty.success
