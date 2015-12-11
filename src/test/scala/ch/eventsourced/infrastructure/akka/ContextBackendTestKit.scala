@@ -4,6 +4,7 @@ import scala.annotation.tailrec
 import scala.language.existentials
 import scala.concurrent.duration._
 import scala.concurrent.{Await, Future}
+import java.io.File
 import akka.actor.ActorSystem
 import akka.testkit.{TestProbe, TestKit}
 import com.typesafe.config.ConfigFactory
@@ -18,7 +19,8 @@ abstract class ContextBackendTestKit(_system: ActorSystem) extends TestKit(_syst
       """
         |akka.loglevel = "WARNING"
         |akka.persistence.journal.plugin = "akka.persistence.journal.inmem"
-        |akka.persistence.snapshot-store.plugin = "in-memory-snapshot-store"
+        |akka.persistence.snapshot-store.plugin = "akka.persistence.snapshot-store.local"
+        |akka.actor.warn-about-java-serializer-usage = "off"
         |akka.log-dead-letters = "false"
         |akka.log-dead-letters-during-shutdown = "false"
       """.stripMargin)
@@ -97,12 +99,20 @@ abstract class ContextBackendTestKit(_system: ActorSystem) extends TestKit(_syst
   def await[A](f: Future[A])(implicit timeout: Duration) = Await.result(f, timeout)
 
   override def beforeEach = {
+    deleteSnapshots()
     _backend = Some(infrastructure.startContext(context, pubSub.ref))
   }
   override def afterEach = {
     implicit val timeout = 5.seconds
     await(backend.shutdown())
     Thread.sleep(200)
+    deleteSnapshots()
+  }
+  private def deleteSnapshots() {
+    val snapshotDir = new File("snapshots")
+    if (snapshotDir.isDirectory) {
+      for (list <- Option(snapshotDir.listFiles()); child <- list) child.delete()
+    }
   }
 
   override def afterAll = {
