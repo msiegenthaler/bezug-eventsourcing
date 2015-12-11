@@ -21,7 +21,7 @@ object Debitor extends AggregateType with DerivedId[Person.Id] {
   case class InkassoFallErstellenVorbereitet(register: Register, steuerjahr: Jahr, referenz: Any) extends Event
   case class InkassoFallEröffnet(inkassoFall: InkassoFall.Id, referenz: Any) extends Event
 
-  type Error = this.type
+  sealed trait Error extends Bezug.Error
 
   type Root = Debitor
   case class Debitor(id: Id, person: Person.Id, inkassoFälle: Seq[InkassoFall.Id]) extends RootBase {
